@@ -1,132 +1,70 @@
 from sqlalchemy import (
-    Column, Integer, BigInteger, String, Numeric, Date,
-    TIMESTAMP, Boolean, ForeignKey, UniqueConstraint, Text
+    Column, Integer, String, Date, Numeric, ForeignKey, PrimaryKeyConstraint, Index
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+from sqlalchemy.orm import DeclarativeBase, relationship
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
+class Industry(Base):
+    __tablename__ = 'industries'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    code = Column(String, unique=True, nullable=False)
+    parent_id = Column(Integer, ForeignKey('industries.id'), nullable=True)
+    children = relationship('Industry', backref='parent', remote_side=[id])
 
 class Company(Base):
-    __tablename__ = "company"
-
+    __tablename__ = 'companies'
     id = Column(Integer, primary_key=True)
-    ticker = Column(String(20), unique=True, nullable=False)
-    legal_name = Column(String(255), nullable=False)
-    country = Column(String(100))
-    industry = Column(String(100))
-    created_at = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+    ticker = Column(String)
+    name = Column(String, nullable=False)
+    inn = Column(String)
+    industry_id = Column(Integer, ForeignKey('industries.id'), nullable=False)
+    industry = relationship('Industry')
 
-    # relationships
-    reporting_periods = relationship("ReportingPeriod", back_populates="company")
-
-
-class ReportType(Base):
-    __tablename__ = "report_type"
-
+class FiscalPeriod(Base):
+    __tablename__ = 'fiscal_periods'
     id = Column(Integer, primary_key=True)
-    name = Column(String(50), unique=True, nullable=False)
-    description = Column(Text)
+    end_date = Column(Date, unique=True, nullable=False)
+    year = Column(Integer, nullable=False)
+    quarter = Column(Integer, nullable=True)
+    period_type = Column(String, nullable=False)  # 'Annual', 'Q1', 'H1' ...
 
-    reporting_periods = relationship("ReportingPeriod", back_populates="report_type")
-
-
-class ReportingPeriod(Base):
-    __tablename__ = "reporting_period"
-
+class Metric(Base):
+    __tablename__ = 'metrics'
     id = Column(Integer, primary_key=True)
-    period_year = Column(Integer, nullable=False)
-    period_end_date = Column(Date, nullable=False)
-    report_type_id = Column(Integer, ForeignKey("report_type.id"), nullable=False)
-    company_id = Column(Integer, ForeignKey("company.id"), nullable=False)
-    is_audited = Column(Boolean, default=True)
-    published_date = Column(Date)
+    code = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    category = Column(String, nullable=False)     # 'P&L', 'BS', 'CF'
 
+class RawFinancial(Base):
+    __tablename__ = 'raw_financials'
+    company_id = Column(Integer, ForeignKey('companies.id'), primary_key=True)
+    period_id = Column(Integer, ForeignKey('fiscal_periods.id'), primary_key=True)
+    metric_id = Column(Integer, ForeignKey('metrics.id'), primary_key=True)
+    value = Column(Numeric)
+    currency = Column(String, default='RUB')
     __table_args__ = (
-        UniqueConstraint("company_id", "period_year", "report_type_id",
-                        name="uq_company_period_report"),
+        PrimaryKeyConstraint('company_id', 'period_id', 'metric_id'),
+        Index('idx_raw_fin_period_metric', 'period_id', 'metric_id'),
+        Index('idx_raw_fin_company_period', 'company_id', 'period_id'),
     )
 
-    # relationships
-    company = relationship("Company", back_populates="reporting_periods")
-    report_type = relationship("ReportType", back_populates="reporting_periods")
-    statement_values = relationship("FinancialStatementValue", back_populates="reporting_period")
-    ratio_values = relationship("CalculatedRatioValue", back_populates="reporting_period")
-
-
-class FinancialStatementLine(Base):
-    __tablename__ = "financial_statement_line"
-
+class Ratio(Base):
+    __tablename__ = 'ratios'
     id = Column(Integer, primary_key=True)
-    line_code = Column(String(50), unique=True, nullable=False)
-    line_name = Column(String(255), nullable=False)
-    statement_type = Column(String(20), nullable=False)  # 'balance', 'pl', 'cf'
-    parent_id = Column(Integer, ForeignKey("financial_statement_line.id"))
-    calculation_formula = Column(Text)
+    code = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    formula = Column(String, nullable=True)
 
-    # relationships
-    parent = relationship("FinancialStatementLine", remote_side=[id])
-    values = relationship("FinancialStatementValue", back_populates="line")
-
-
-class FinancialStatementValue(Base):
-    __tablename__ = "financial_statement_value"
-
-    id = Column(BigInteger, primary_key=True)
-    reporting_period_id = Column(Integer, ForeignKey("reporting_period.id"), nullable=False)
-    line_id = Column(Integer, ForeignKey("financial_statement_line.id"), nullable=False)
-    value = Column(Numeric(28, 2), nullable=False)
-    currency = Column(String(3), default="RUB")
-
+class RatioFinancial(Base):
+    __tablename__ = 'ratio_financials'
+    company_id = Column(Integer, ForeignKey('companies.id'), primary_key=True)
+    period_id = Column(Integer, ForeignKey('fiscal_periods.id'), primary_key=True)
+    ratio_id = Column(Integer, ForeignKey('ratios.id'), primary_key=True)
+    value = Column(Numeric, nullable=False)
     __table_args__ = (
-        UniqueConstraint("reporting_period_id", "line_id",
-                        name="uq_period_line"),
+        PrimaryKeyConstraint('company_id', 'period_id', 'ratio_id'),
+        Index('idx_ratio_ratio_company_period', 'ratio_id', 'company_id', 'period_id'),
     )
-
-    # relationships
-    reporting_period = relationship("ReportingPeriod", back_populates="statement_values")
-    line = relationship("FinancialStatementLine", back_populates="values")
-
-
-class FinancialRatio(Base):
-    __tablename__ = "financial_ratio"
-
-    id = Column(Integer, primary_key=True)
-    ratio_code = Column(String(50), unique=True, nullable=False)
-    ratio_name = Column(String(255), nullable=False)
-    formula = Column(Text)
-    normalization_min = Column(Numeric(5, 2))
-    normalization_max = Column(Numeric(5, 2))
-    interpretation = Column(Text)
-
-    ratio_values = relationship("CalculatedRatioValue", back_populates="ratio")
-
-
-class CalculatedRatioValue(Base):
-    __tablename__ = "calculated_ratio_value"
-
-    id = Column(BigInteger, primary_key=True)
-    reporting_period_id = Column(Integer, ForeignKey("reporting_period.id"), nullable=False)
-    ratio_id = Column(Integer, ForeignKey("financial_ratio.id"), nullable=False)
-    value = Column(Numeric(20, 6), nullable=False)
-    created_at = Column(TIMESTAMP, default=datetime.now(timezone.utc))
-
-    __table_args__ = (
-        UniqueConstraint("reporting_period_id", "ratio_id",
-                        name="uq_period_ratio"),
-    )
-
-    # relationships
-    reporting_period = relationship("ReportingPeriod", back_populates="ratio_values")
-    ratio = relationship("FinancialRatio", back_populates="ratio_values")
-
-
-class DataSource(Base):
-    __tablename__ = "data_source"
-
-    id = Column(Integer, primary_key=True)
-    source_name = Column(String(255), nullable=False)
-    source_url = Column(Text)
-    reliability = Column(Integer, default=5)
