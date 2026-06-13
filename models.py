@@ -51,6 +51,10 @@ class RawFinancial(Base):
         Index('idx_raw_fin_company_period', 'company_id', 'period_id'),
     )
 
+    company = relationship('Company')
+    period = relationship('FiscalPeriod')
+    metric = relationship('Metric')
+
 class Ratio(Base):
     __tablename__ = 'ratios'
     id = Column(Integer, primary_key=True)
@@ -68,3 +72,7 @@ class RatioFinancial(Base):
         PrimaryKeyConstraint('company_id', 'period_id', 'ratio_id'),
         Index('idx_ratio_ratio_company_period', 'ratio_id', 'company_id', 'period_id'),
     )
+
+    company = relationship('Company')
+    period = relationship('FiscalPeriod')
+    ratio = relationship('Ratio')

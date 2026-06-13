@@ -4,7 +4,6 @@ Import IFRS financial data from an Excel file, extract key financial indicators,
 and save the results to a database.
 """
 
-import os
 import sys
 import argparse
 import pandas as pd
