@@ -102,8 +102,6 @@ def generate_scenarios(
     # ---------- Base forecast ----------
     base = extrapolate_series(df, forecast_year)
 
-    # ---------- Mild: revenue -10 % ----------
-    mild = base.copy()
     rev_col = "revenue" if "revenue" in base.index else None
     cogs_col = "cogs" if "cogs" in base.index else None
     sga_col = "sga" if "sga" in base.index else None
@@ -111,6 +109,12 @@ def generate_scenarios(
     int_col = "interest_expense" if "interest_expense" in base.index else None
     pretax_col = "pretax_profit" if "pretax_profit" in base.index else None
 
+    # ----------------------------------------------------------
+    # 1. DEMAND SHOCK SCENARIOS
+    # ----------------------------------------------------------
+
+    # 1.1 Mild: revenue -10 %
+    mild = base.copy()
     if rev_col:
         mild[rev_col] *= 0.9  # revenue decrease by 10%
 
@@ -132,7 +136,7 @@ def generate_scenarios(
     if pretax_col:
         mild["net_profit"] = mild["pretax_profit"] * 0.8
 
-    # ---------- Severe scenario: revenue -20 %, cost of goods sold +20 % ----------
+    # 1.2 Severe scenario: revenue -20 %, cost of goods sold +20 %
     severe = base.copy()
     if rev_col:
         severe[rev_col] *= 0.8
@@ -152,7 +156,106 @@ def generate_scenarios(
     if pretax_col:
         severe["net_profit"] = severe["net_profit"] * 0.8
 
-    return {"base": base, "mild": mild, "severe": severe}
+    # 1.3 Deep recession scenario: revenue -30 %, COGS +30 %, SGA +10 %, depreciation +10 %
+    deep_recession = base.copy()
+    if rev_col:
+        deep_recession[rev_col] *= 0.7
+    if cogs_col:
+        deep_recession[cogs_col] = base[cogs_col] * 1.3
+    if sga_col:
+        deep_recession[sga_col] = base[sga_col] * 1.1
+    if depr_col:
+        deep_recession[depr_col] = base[depr_col] * 1.1
+    if rev_col and cogs_col and sga_col and depr_col:
+        deep_recession["operating_profit"] = (
+            deep_recession[rev_col]
+            - deep_recession[cogs_col]
+            - deep_recession[sga_col]
+            - deep_recession[depr_col]
+        )
+    if int_col and "operating_profit" in deep_recession.index:
+        deep_recession["pretax_profit"] = (
+            deep_recession["operating_profit"] - deep_recession[int_col]
+        )
+
+    # ----------------------------------------------------------
+    # 2. COST SHOCK SCENARIOS
+    # ----------------------------------------------------------
+
+    # 2.1 Cost-push inflation scenario: COGS +15 %, SGA +10 %, depreciation +5 %
+    # Meaning:   cost inflation without the ability to fully pass it on to prices (relevant for 2021–2023).
+    # Mechanics: cost price increases by 15%, SGA by 10% (salaries, logistics),
+    #            revenue remains unchanged (the market does not accept price increases).
+    cost_push = base.copy()
+    if cogs_col:
+        cost_push[cogs_col] = base[cogs_col] * 1.15
+    if sga_col:
+        cost_push[sga_col] = base[sga_col] * 1.10
+    if depr_col:
+        cost_push[depr_col] = base[depr_col] * 1.05
+    if rev_col and cogs_col and sga_col and depr_col:
+        cost_push["operating_profit"] = (
+            cost_push[rev_col]
+            - cost_push[cogs_col]
+            - cost_push[sga_col]
+            - cost_push[depr_col]
+        )
+
+    # 2.2. Commodity super-cycle scenario: COGS +30 %, SGA +20 %, depreciation +10 %
+    commodity_super_cycle = base.copy()
+    if cogs_col:
+        commodity_super_cycle[cogs_col] = base[cogs_col] * 1.30
+    if sga_col:
+        commodity_super_cycle[sga_col] = base[sga_col] * 1.20
+    if depr_col:
+        commodity_super_cycle[depr_col] = base[depr_col] * 1.10
+    if rev_col and cogs_col and sga_col and depr_col:
+        commodity_super_cycle["operating_profit"] = (
+            commodity_super_cycle[rev_col]
+            - commodity_super_cycle[cogs_col]
+            - commodity_super_cycle[sga_col]
+            - commodity_super_cycle[depr_col]
+        )
+
+    # ----------------------------------------------------------
+    # 3. INTEREST RATE AND CURRENCY SHOCKS
+    # ----------------------------------------------------------
+
+    # 3.1. Rate hike scenario: interest expense +30 %
+    rate_hike = base.copy()
+    if int_col:
+        rate_hike[int_col] = base[int_col] * 1.30
+    if rev_col and cogs_col and sga_col and depr_col and int_col:
+        rate_hike["operating_profit"] = (
+            rate_hike[rev_col]
+            - rate_hike[cogs_col]
+            - rate_hike[sga_col]
+            - rate_hike[depr_col]
+        )
+        rate_hike["pretax_profit"] = rate_hike["operating_profit"] - rate_hike[int_col]
+        if pretax_col:
+            rate_hike["net_profit"] = rate_hike["pretax_profit"] * 0.8
+
+    # ----------------------------------------------------------
+    # 4. LIQUIDITY AND BALANCE SHOCKS
+    # ----------------------------------------------------------
+
+    # 4.1. Liquidity crunch scenario: interest expense +50 %, revenue -15 %
+    liquidity_crunch = base.copy()
+    if rev_col:
+        liquidity_crunch[rev_col] *= 0.85
+    if int_col:
+        liquidity_crunch[int_col] *= 1.50
+
+    return {"base": base,
+            "mild": mild,
+            "severe": severe,
+            "deep_recession": deep_recession,
+            "cost_push": cost_push,
+            "commodity_super_cycle": commodity_super_cycle,
+            "rate_hike": rate_hike,
+            "liquidity_crunch": liquidity_crunch
+        }
 
 # ------------------------------------------------------------
 # Breakeven analysis to find the revenue level where operating profit = 0.
@@ -186,10 +289,7 @@ def breakeven_analysis(base: pd.Series) -> float:
 def forecast_scenarios(logger: logging.Logger, session: Session, company_name: str) -> pd.DataFrame:
     """
     Main entry point for the forecasting model.
-    Returns a dictionary containing:
-        - 'scenarios': dict with three pd.Series
-        - 'breakeven': dict with breakeven thresholds for each scenario
-        - 'commentary': text outputs with insights on the results
+    Returns a dataframe with scenarios, breakeven points, safety margins, critical drops, and required price increases.
     """
     logger.info(f"Loading historical data for {company_name}")
 
@@ -237,7 +337,7 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
             required_price_increase[name] = np.nan
 
     rows : List[Dict[str, str]] = []
-    for name in ["base", "mild", "severe"]:
+    for name in ["base", "mild", "severe", "deep_recession", "cost_push", "commodity_super_cycle", "rate_hike", "liquidity_crunch"]:
         rev = scenarios[name].get("revenue")
         rows.append({
             "Scenario": name.capitalize(),
