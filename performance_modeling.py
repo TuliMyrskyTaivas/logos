@@ -84,6 +84,49 @@ def extrapolate_series(
             result[col] = extrapolate(recent, target_year)
     return pd.Series(result)
 
+def recalculate_indicators(projection: pd.Series) -> pd.Series:
+    """
+    Recalculate derived indicators based on the forecasted metrics.
+    Includes profit, cash flow and margin indicators that respond to changes
+    in revenue, costs, depreciation and interest.
+    """
+    rev = projection.get("revenue", 0)
+    cogs = abs(projection.get("cogs", 0))
+    sga = abs(projection.get("sga", 0))
+    depr = projection.get("depreciation", 0)
+    int_exp = projection.get("interest_expense", 0)
+
+    # EBITDA and operating profit
+    ebitda = rev - cogs - sga
+    projection["ebitda"] = ebitda
+    projection["ebitda_margin"] = ebitda / rev if rev else np.nan
+
+    op_profit = ebitda - depr
+    projection["operating_profit"] = op_profit
+
+    # Pretax and net profit
+    pretax_profit = op_profit - int_exp
+    projection["pretax_profit"] = pretax_profit
+
+    net_profit = pretax_profit * 0.8
+    projection["net_profit"] = net_profit
+
+    # Cash flow indicators
+    cfo = projection.get("cfo")
+    if pd.isna(cfo):
+        cfo = net_profit + depr
+    projection["cfo"] = cfo
+
+    capex = projection.get("capex", np.nan)
+    projection["free_cash_flow"] = cfo - capex if pd.notna(capex) else np.nan
+
+    # Margin indicators
+    projection["operating_margin"] = op_profit / rev if rev else np.nan
+    projection["net_margin"] = net_profit / rev if rev else np.nan
+    projection["cash_flow_margin"] = cfo / rev if rev else np.nan
+
+    return projection
+
 # ------------------------------------------------------------
 # Scenario generation based on the base forecast and assumptions.
 # ------------------------------------------------------------
@@ -94,8 +137,7 @@ def generate_scenarios(
     forecast_year: int,
 ) -> Dict[str, pd.Series]:
     """
-    Returns three scenarios: 'base', 'mild', 'severe'.
-    Each is a pd.Series with forecast values for the metrics.
+    Returns a dictionary of scenarios, where keys are scenario names and values are forecasted metrics.
     """
 
     logger.info(f"Generating scenarios for {forecast_year} based on data up to {last_year}")
@@ -107,7 +149,11 @@ def generate_scenarios(
     sga_col = "sga" if "sga" in base.index else None
     depr_col = "depreciation" if "depreciation" in base.index else None
     int_col = "interest_expense" if "interest_expense" in base.index else None
-    pretax_col = "pretax_profit" if "pretax_profit" in base.index else None
+    cogs_ratio = base[cogs_col] / base[rev_col] if rev_col and cogs_col and base[rev_col] != 0 else 0
+
+    # Results dictionary to hold all scenarios
+    scenarios : Dict[str, pd.Series] = {}
+    scenarios["base"] = recalculate_indicators(base)
 
     # ----------------------------------------------------------
     # 1. DEMAND SHOCK SCENARIOS
@@ -121,20 +167,11 @@ def generate_scenarios(
     # Variable costs are proportional to revenue (COGS - cost of goods sold), therefore we scale them by the same factor.
     # SGA, depreciation, interest – considered constant.
     if cogs_col and rev_col:
-        ratio_cogs = base[cogs_col] / base[rev_col] if base[rev_col] != 0 else 0
-        mild[cogs_col] = mild[rev_col] * ratio_cogs
+        mild[cogs_col] = mild[rev_col] * cogs_ratio  # COGS scales with revenue
 
     # Assume SGA, depreciation, and interest expenses remain constant in the mild scenario.
     # Operating profit is recalculated based on the new revenue and COGS.
-    if rev_col and cogs_col and sga_col and depr_col:
-        mild["operating_profit"] = (
-            mild[rev_col] - mild[cogs_col] - mild[sga_col] - mild[depr_col]
-        )
-    # Profit before tax (simplified at 20% tax rate)
-    if int_col and "operating_profit" in mild.index:
-        mild["pretax_profit"] = mild["operating_profit"] - mild[int_col]
-    if pretax_col:
-        mild["net_profit"] = mild["pretax_profit"] * 0.8
+    scenarios["mild"] = recalculate_indicators(mild)
 
     # 1.2 Severe scenario: revenue -20 %, cost of goods sold +20 %
     severe = base.copy()
@@ -142,19 +179,7 @@ def generate_scenarios(
         severe[rev_col] *= 0.8
     if cogs_col:
         severe[cogs_col] = base[cogs_col] * 1.2  # cost of goods sold increases by 20%
-
-    # SGA, depreciation, interest are constant
-    if rev_col and cogs_col and sga_col and depr_col:
-        severe["operating_profit"] = (
-            severe[rev_col]
-            - severe[cogs_col]
-            - severe[sga_col]
-            - severe[depr_col]
-        )
-    if int_col and "operating_profit" in severe.index:
-        severe["pretax_profit"] = severe["operating_profit"] - severe[int_col]
-    if pretax_col:
-        severe["net_profit"] = severe["net_profit"] * 0.8
+    scenarios["severe"] = recalculate_indicators(severe)
 
     # 1.3 Deep recession scenario: revenue -30 %, COGS +30 %, SGA +10 %, depreciation +10 %
     deep_recession = base.copy()
@@ -166,17 +191,7 @@ def generate_scenarios(
         deep_recession[sga_col] = base[sga_col] * 1.1
     if depr_col:
         deep_recession[depr_col] = base[depr_col] * 1.1
-    if rev_col and cogs_col and sga_col and depr_col:
-        deep_recession["operating_profit"] = (
-            deep_recession[rev_col]
-            - deep_recession[cogs_col]
-            - deep_recession[sga_col]
-            - deep_recession[depr_col]
-        )
-    if int_col and "operating_profit" in deep_recession.index:
-        deep_recession["pretax_profit"] = (
-            deep_recession["operating_profit"] - deep_recession[int_col]
-        )
+    scenarios["deep_recession"] = recalculate_indicators(deep_recession)
 
     # ----------------------------------------------------------
     # 2. COST SHOCK SCENARIOS
@@ -193,13 +208,7 @@ def generate_scenarios(
         cost_push[sga_col] = base[sga_col] * 1.10
     if depr_col:
         cost_push[depr_col] = base[depr_col] * 1.05
-    if rev_col and cogs_col and sga_col and depr_col:
-        cost_push["operating_profit"] = (
-            cost_push[rev_col]
-            - cost_push[cogs_col]
-            - cost_push[sga_col]
-            - cost_push[depr_col]
-        )
+    scenarios["cost_push"] = recalculate_indicators(cost_push)
 
     # 2.2. Commodity super-cycle scenario: COGS +30 %, SGA +20 %, depreciation +10 %
     commodity_super_cycle = base.copy()
@@ -209,13 +218,7 @@ def generate_scenarios(
         commodity_super_cycle[sga_col] = base[sga_col] * 1.20
     if depr_col:
         commodity_super_cycle[depr_col] = base[depr_col] * 1.10
-    if rev_col and cogs_col and sga_col and depr_col:
-        commodity_super_cycle["operating_profit"] = (
-            commodity_super_cycle[rev_col]
-            - commodity_super_cycle[cogs_col]
-            - commodity_super_cycle[sga_col]
-            - commodity_super_cycle[depr_col]
-        )
+    scenarios["commodity_super_cycle"] = recalculate_indicators(commodity_super_cycle)
 
     # ----------------------------------------------------------
     # 3. INTEREST RATE AND CURRENCY SHOCKS
@@ -225,16 +228,7 @@ def generate_scenarios(
     rate_hike = base.copy()
     if int_col:
         rate_hike[int_col] = base[int_col] * 1.30
-    if rev_col and cogs_col and sga_col and depr_col and int_col:
-        rate_hike["operating_profit"] = (
-            rate_hike[rev_col]
-            - rate_hike[cogs_col]
-            - rate_hike[sga_col]
-            - rate_hike[depr_col]
-        )
-        rate_hike["pretax_profit"] = rate_hike["operating_profit"] - rate_hike[int_col]
-        if pretax_col:
-            rate_hike["net_profit"] = rate_hike["pretax_profit"] * 0.8
+    scenarios["rate_hike"] = recalculate_indicators(rate_hike)
 
     # ----------------------------------------------------------
     # 4. LIQUIDITY AND BALANCE SHOCKS
@@ -246,16 +240,9 @@ def generate_scenarios(
         liquidity_crunch[rev_col] *= 0.85
     if int_col:
         liquidity_crunch[int_col] *= 1.50
+    scenarios["liquidity_crunch"] = recalculate_indicators(liquidity_crunch)
 
-    return {"base": base,
-            "mild": mild,
-            "severe": severe,
-            "deep_recession": deep_recession,
-            "cost_push": cost_push,
-            "commodity_super_cycle": commodity_super_cycle,
-            "rate_hike": rate_hike,
-            "liquidity_crunch": liquidity_crunch
-        }
+    return scenarios
 
 # ------------------------------------------------------------
 # Breakeven analysis to find the revenue level where operating profit = 0.
@@ -338,10 +325,26 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
 
     rows : List[Dict[str, str]] = []
     for name in ["base", "mild", "severe", "deep_recession", "cost_push", "commodity_super_cycle", "rate_hike", "liquidity_crunch"]:
-        rev = scenarios[name].get("revenue")
+        projection = scenarios[name]
+        rev = projection.get("revenue")
+        cfo = projection.get("cfo")
+        fcf = projection.get("free_cash_flow")
+        ebitda = projection.get("ebitda")
+        ebitda_margin = projection.get("ebitda_margin")
+        operating_margin = projection.get("operating_margin")
+        net_margin = projection.get("net_margin")
+        cash_flow_margin = projection.get("cash_flow_margin")
+
         rows.append({
             "Scenario": name.capitalize(),
             "Revenue": f"{rev:,.0f}" if rev else "—",
+            "EBITDA": f"{ebitda:,.0f}" if ebitda is not None and not pd.isna(ebitda) else "—",
+            "EBITDA Margin, %": f"{ebitda_margin * 100:.1f}" if ebitda_margin is not None and not pd.isna(ebitda_margin) else "—",
+            "CFO": f"{cfo:,.0f}" if cfo is not None and not pd.isna(cfo) else "—",
+            "Free Cash Flow": f"{fcf:,.0f}" if fcf is not None and not pd.isna(fcf) else "—",
+            "Operating Margin, %": f"{operating_margin * 100:.1f}" if operating_margin is not None and not pd.isna(operating_margin) else "—",
+            "Net Margin, %": f"{net_margin * 100:.1f}" if net_margin is not None and not pd.isna(net_margin) else "—",
+            "Cash Flow Margin, %": f"{cash_flow_margin * 100:.1f}" if cash_flow_margin is not None and not pd.isna(cash_flow_margin) else "—",
             "Breakeven": f"{be[name]:,.0f}" if not np.isinf(be.get(name, np.nan)) else "∞",
             "Safety Margin, %": f"{(rev / be[name] - 1) * 100:.1f}" if rev and be.get(name) and be[name] > 0 else "—",
             "Critical Drop, %": f"{critical_drop.get(name, 0):.1f}" if critical_drop.get(name) is not None else "—",
