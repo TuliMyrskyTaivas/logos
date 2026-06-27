@@ -167,10 +167,8 @@ def play_scenario(logger: logging.Logger, session: Session, scenarioId: int, bas
     forecast = base.copy()
     # Revenue first, because scale_to_revenue depends on it
     revenue = next((v for v in variables if v.metric == 'revenue'), None)
-    if revenue:
-        operator = revenue.operator.value if hasattr(revenue.operator, 'value') else str(revenue.operator)
-        if operator == 'multiply':
-            forecast['revenue'] = forecast['revenue'] * float(revenue.value)
+    if revenue and revenue.operator == 'multiply':
+        forecast['revenue'] = forecast['revenue'] * float(revenue.value)
 
     # Other variables of scenario
     for var in variables:
@@ -181,20 +179,20 @@ def play_scenario(logger: logging.Logger, session: Session, scenarioId: int, bas
         if not metric_code or metric_code not in forecast.index:
             continue
 
-        operator = var.operator.value if hasattr(var.operator, 'value') else str(var.operator)
+        #operator = var.operator.value if hasattr(var.operator, 'value') else str(var.operator)
 
-        if operator == 'multiply':
+        if var.operator == 'multiply':
             forecast[metric_code] = forecast[metric_code] * float(var.value)
-        elif operator == 'add':
+        elif var.operator == 'add':
             forecast[metric_code] = forecast[metric_code] + float(var.value)
-        elif operator == 'set':
+        elif var.operator == 'set':
             forecast[metric_code] = float(var.value)
-        elif operator == 'scale_to_revenue':
+        elif var.operator == 'scale_to_revenue':
             if 'revenue' in forecast.index and forecast['revenue'] != 0:
                 ratio = abs(base[metric_code]) / base['revenue']
                 forecast[metric_code] = -abs(forecast['revenue'] * ratio)
         else:
-            logger.warning(f"unknown operator {operator} for variable {var.metric}")
+            logger.warning(f"unknown operator {var.operator} for variable {var.metric}")
 
     # Recalculate derived indicators and return the result
     return recalculate_indicators(forecast)
