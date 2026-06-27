@@ -10,6 +10,7 @@ from models import (
 def add_financial_data(
     session: Session,
     company_name: str,
+    ticker: str,
     industry_name: str,
     metrics_data: dict[str, pd.Series],
     ratios_data: pd.DataFrame
@@ -22,6 +23,8 @@ def add_financial_data(
         Active SQLAlchemy session.
     company_name : str
         Name of the company.
+    ticker : str
+        Ticker symbol of the company.
     industry_name : str
         Name of the industry. If the industry does not exist in the DB, a new one is created (code is generated automatically from the name).
     metrics_data : dict[str, pd.Series]
@@ -32,17 +35,14 @@ def add_financial_data(
     # 1. Industry: search or create
     industry = session.query(Industry).filter_by(name=industry_name).first()
     if not industry:
-        code = industry_name.upper().replace(' ', '_')
-        industry = Industry(name=industry_name, code=code)
-        session.add(industry)
-        session.flush()  # получить id до вставки компании
+        raise ValueError(f"Industry '{industry_name}' not found in DB. Please create the industry before adding financial data.")
 
     # 2. Company: search or create
     company = session.query(Company).filter_by(
         name=company_name, industry_id=industry.id
     ).first()
     if not company:
-        company = Company(name=company_name, industry_id=industry.id)
+        company = Company(name=company_name, ticker=ticker, industry_id=industry.id)
         session.add(company)
         session.flush()
 

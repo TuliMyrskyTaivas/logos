@@ -14,7 +14,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
-    # 1. Создание таблиц
+    # Create tables
     op.create_table('industries',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(), nullable=False),
@@ -83,8 +83,8 @@ def upgrade() -> None:
     )
     op.create_index('idx_ratio_ratio_company_period', 'ratio_financials', ['ratio_id', 'company_id', 'period_id'])
 
-    # 2. Заполнение словарей
-    # --- Отрасли ---
+    # Fill the dictionary tables with initial data
+    # Industries
     industries_table = sa.table('industries',
         sa.column('id', sa.Integer),
         sa.column('name', sa.String),
@@ -116,7 +116,7 @@ def upgrade() -> None:
         {'id': 22, 'name': 'Производство минеральных удобрений', 'code': 'CHEMICAL_FERTILIZERS', 'parent_id': 21}
     ])
 
-    # --- Метрики МСФО ---
+    # IFRS metrics
     metrics_table = sa.table('metrics',
         sa.column('id', sa.Integer),
         sa.column('code', sa.String),
@@ -148,7 +148,7 @@ def upgrade() -> None:
         {'id': 19, 'code': 'cfi', 'name': 'Чистый инвест. ден. поток', 'category': 'CF'},
     ])
 
-    # --- Коэффициенты ---
+    # Ratios
     ratios_table = sa.table('ratios',
         sa.column('id', sa.Integer),
         sa.column('code', sa.String),

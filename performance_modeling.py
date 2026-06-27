@@ -5,7 +5,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 from typing import Dict, List, Tuple
 from database import get_db
-from models import Company, Metric, FiscalPeriod, RawFinancial
+from models import Company, Metric, FiscalPeriod, RawFinancial, Scenario, ScenarioVariable
 
 # ------------------------------------------------------------
 # Load historical data from the database and prepare it for modeling.
@@ -62,7 +62,6 @@ def extrapolate(
     y = valid.values.astype(float)
     slope, intercept = np.polynomial.Polynomial.fit(x, y, 1)
     return slope * target_year + intercept
-
 
 def extrapolate_series(
     df: pd.DataFrame,
@@ -128,123 +127,6 @@ def recalculate_indicators(projection: pd.Series) -> pd.Series:
     return projection
 
 # ------------------------------------------------------------
-# Scenario generation based on the base forecast and assumptions.
-# ------------------------------------------------------------
-def generate_scenarios(
-    logger: logging.Logger,
-    df: pd.DataFrame,
-    last_year: int,
-    forecast_year: int,
-) -> Dict[str, pd.Series]:
-    """
-    Returns a dictionary of scenarios, where keys are scenario names and values are forecasted metrics.
-    """
-
-    logger.info(f"Generating scenarios for {forecast_year} based on data up to {last_year}")
-    # ---------- Base forecast ----------
-    base = extrapolate_series(df, forecast_year)
-
-    rev_col = "revenue" if "revenue" in base.index else None
-    cogs_col = "cogs" if "cogs" in base.index else None
-    sga_col = "sga" if "sga" in base.index else None
-    depr_col = "depreciation" if "depreciation" in base.index else None
-    int_col = "interest_expense" if "interest_expense" in base.index else None
-    cogs_ratio = base[cogs_col] / base[rev_col] if rev_col and cogs_col and base[rev_col] != 0 else 0
-
-    # Results dictionary to hold all scenarios
-    scenarios : Dict[str, pd.Series] = {}
-    scenarios["base"] = recalculate_indicators(base)
-
-    # ----------------------------------------------------------
-    # 1. DEMAND SHOCK SCENARIOS
-    # ----------------------------------------------------------
-
-    # 1.1 Mild: revenue -10 %
-    mild = base.copy()
-    if rev_col:
-        mild[rev_col] *= 0.9  # revenue decrease by 10%
-
-    # Variable costs are proportional to revenue (COGS - cost of goods sold), therefore we scale them by the same factor.
-    # SGA, depreciation, interest – considered constant.
-    if cogs_col and rev_col:
-        mild[cogs_col] = mild[rev_col] * cogs_ratio  # COGS scales with revenue
-
-    # Assume SGA, depreciation, and interest expenses remain constant in the mild scenario.
-    # Operating profit is recalculated based on the new revenue and COGS.
-    scenarios["mild"] = recalculate_indicators(mild)
-
-    # 1.2 Severe scenario: revenue -20 %, cost of goods sold +20 %
-    severe = base.copy()
-    if rev_col:
-        severe[rev_col] *= 0.8
-    if cogs_col:
-        severe[cogs_col] = base[cogs_col] * 1.2  # cost of goods sold increases by 20%
-    scenarios["severe"] = recalculate_indicators(severe)
-
-    # 1.3 Deep recession scenario: revenue -30 %, COGS +30 %, SGA +10 %, depreciation +10 %
-    deep_recession = base.copy()
-    if rev_col:
-        deep_recession[rev_col] *= 0.7
-    if cogs_col:
-        deep_recession[cogs_col] = base[cogs_col] * 1.3
-    if sga_col:
-        deep_recession[sga_col] = base[sga_col] * 1.1
-    if depr_col:
-        deep_recession[depr_col] = base[depr_col] * 1.1
-    scenarios["deep_recession"] = recalculate_indicators(deep_recession)
-
-    # ----------------------------------------------------------
-    # 2. COST SHOCK SCENARIOS
-    # ----------------------------------------------------------
-
-    # 2.1 Cost-push inflation scenario: COGS +15 %, SGA +10 %, depreciation +5 %
-    # Meaning:   cost inflation without the ability to fully pass it on to prices (relevant for 2021–2023).
-    # Mechanics: cost price increases by 15%, SGA by 10% (salaries, logistics),
-    #            revenue remains unchanged (the market does not accept price increases).
-    cost_push = base.copy()
-    if cogs_col:
-        cost_push[cogs_col] = base[cogs_col] * 1.15
-    if sga_col:
-        cost_push[sga_col] = base[sga_col] * 1.10
-    if depr_col:
-        cost_push[depr_col] = base[depr_col] * 1.05
-    scenarios["cost_push"] = recalculate_indicators(cost_push)
-
-    # 2.2. Commodity super-cycle scenario: COGS +30 %, SGA +20 %, depreciation +10 %
-    commodity_super_cycle = base.copy()
-    if cogs_col:
-        commodity_super_cycle[cogs_col] = base[cogs_col] * 1.30
-    if sga_col:
-        commodity_super_cycle[sga_col] = base[sga_col] * 1.20
-    if depr_col:
-        commodity_super_cycle[depr_col] = base[depr_col] * 1.10
-    scenarios["commodity_super_cycle"] = recalculate_indicators(commodity_super_cycle)
-
-    # ----------------------------------------------------------
-    # 3. INTEREST RATE AND CURRENCY SHOCKS
-    # ----------------------------------------------------------
-
-    # 3.1. Rate hike scenario: interest expense +30 %
-    rate_hike = base.copy()
-    if int_col:
-        rate_hike[int_col] = base[int_col] * 1.30
-    scenarios["rate_hike"] = recalculate_indicators(rate_hike)
-
-    # ----------------------------------------------------------
-    # 4. LIQUIDITY AND BALANCE SHOCKS
-    # ----------------------------------------------------------
-
-    # 4.1. Liquidity crunch scenario: interest expense +50 %, revenue -15 %
-    liquidity_crunch = base.copy()
-    if rev_col:
-        liquidity_crunch[rev_col] *= 0.85
-    if int_col:
-        liquidity_crunch[int_col] *= 1.50
-    scenarios["liquidity_crunch"] = recalculate_indicators(liquidity_crunch)
-
-    return scenarios
-
-# ------------------------------------------------------------
 # Breakeven analysis to find the revenue level where operating profit = 0.
 # ------------------------------------------------------------
 def breakeven_analysis(base: pd.Series) -> float:
@@ -269,6 +151,85 @@ def breakeven_analysis(base: pd.Series) -> float:
     be_revenue = fixed_costs / (1 - variable_ratio)
     return be_revenue
 
+def play_scenario(logger: logging.Logger, session: Session, scenarioId: int, base: pd.Series) -> pd.Series:
+    """
+    Apply specified scenario from the database to the baseline forecast
+    """
+
+    # Get variables for the scenario from the database
+    variables = (
+        session.query(ScenarioVariable)
+        .join(Metric)
+        .filter(ScenarioVariable.scenario_id == scenarioId)
+        .all()
+    )
+
+    forecast = base.copy()
+    # Revenue first, because scale_to_revenue depends on it
+    revenue = next((v for v in variables if v.metric == 'revenue'), None)
+    if revenue:
+        operator = revenue.operator.value if hasattr(revenue.operator, 'value') else str(revenue.operator)
+        if operator == 'multiply':
+            forecast['revenue'] = forecast['revenue'] * float(revenue.value)
+
+    # Other variables of scenario
+    for var in variables:
+        if var.metric == 'revenue':
+            continue  # already done
+
+        metric_code = getattr(var.metric, 'code', None)
+        if not metric_code or metric_code not in forecast.index:
+            continue
+
+        operator = var.operator.value if hasattr(var.operator, 'value') else str(var.operator)
+
+        if operator == 'multiply':
+            forecast[metric_code] = forecast[metric_code] * float(var.value)
+        elif operator == 'add':
+            forecast[metric_code] = forecast[metric_code] + float(var.value)
+        elif operator == 'set':
+            forecast[metric_code] = float(var.value)
+        elif operator == 'scale_to_revenue':
+            if 'revenue' in forecast.index and forecast['revenue'] != 0:
+                ratio = abs(base[metric_code]) / base['revenue']
+                forecast[metric_code] = -abs(forecast['revenue'] * ratio)
+        else:
+            logger.warning(f"unknown operator {operator} for variable {var.metric}")
+
+    # Recalculate derived indicators and return the result
+    return recalculate_indicators(forecast)
+
+def play_scenarios(
+    logger: logging.Logger,
+    session: Session,
+    df: pd.DataFrame,
+    last_year: int,
+    forecast_year: int,
+) -> Dict[str, pd.Series]:
+    """
+    Returns a dictionary of scenarios, where keys are scenario names and values are forecasted metrics.
+    """
+
+    logger.info(f"Generate forecasts for {forecast_year} based on data up to {last_year}")
+    # ---------- Base forecast ----------
+    base = extrapolate_series(df, forecast_year)
+
+    # Results dictionary to hold all scenarios
+    forecasts : Dict[str, pd.Series] = {}
+    forecasts["base"] = recalculate_indicators(base)
+
+    # Get variables for the scenario from the database
+    scenarios = (
+        session.query(Scenario)
+        .filter(Scenario.is_active == True)
+        .all()
+    )
+
+    logger.info(f"{len(scenarios)} active scenarios loaded from the database")
+    for scenario in scenarios:
+        forecasts[scenario.code] = play_scenario(logger, session, int(scenario.id), base)
+
+    return forecasts
 
 # ------------------------------------------------------------
 # Main function to run the modeling and output results.
@@ -284,7 +245,8 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
     df, years = load_historical_data(logger, session, company_name)
     last_year = years[-1]
     forecast_year = last_year + 1
-    scenarios = generate_scenarios(logger, df, last_year, forecast_year)
+    #scenarios = generate_scenarios(logger, df, last_year, forecast_year)
+    scenarios = play_scenarios(logger, session, df, last_year, forecast_year)
 
     # Calculate breakeven revenue for each scenario
     be : Dict[str, float] = {}
@@ -324,16 +286,16 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
             required_price_increase[name] = np.nan
 
     rows : List[Dict[str, str]] = []
-    for name in ["base", "mild", "severe", "deep_recession", "cost_push", "commodity_super_cycle", "rate_hike", "liquidity_crunch"]:
-        projection = scenarios[name]
-        rev = projection.get("revenue")
-        cfo = projection.get("cfo")
-        fcf = projection.get("free_cash_flow")
-        ebitda = projection.get("ebitda")
-        ebitda_margin = projection.get("ebitda_margin")
-        operating_margin = projection.get("operating_margin")
-        net_margin = projection.get("net_margin")
-        cash_flow_margin = projection.get("cash_flow_margin")
+
+    for name, forecast in scenarios.items():
+        rev = forecast.get("revenue")
+        cfo = forecast.get("cfo")
+        fcf = forecast.get("free_cash_flow")
+        ebitda = forecast.get("ebitda")
+        ebitda_margin = forecast.get("ebitda_margin")
+        operating_margin = forecast.get("operating_margin")
+        net_margin = forecast.get("net_margin")
+        cash_flow_margin = forecast.get("cash_flow_margin")
 
         rows.append({
             "Scenario": name.capitalize(),

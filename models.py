@@ -1,7 +1,9 @@
 from sqlalchemy import (
-    Column, Integer, String, Date, Numeric, ForeignKey, PrimaryKeyConstraint, Index
+    Column, Integer, String, Date, Numeric, Boolean, ForeignKey, PrimaryKeyConstraint, UniqueConstraint, Index
 )
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
+from sqlalchemy.types import TIMESTAMP
+from sqlalchemy.sql import func
 
 class Base(DeclarativeBase):
     pass
@@ -76,3 +78,39 @@ class RatioFinancial(Base):
     company = relationship('Company')
     period = relationship('FiscalPeriod')
     ratio = relationship('Ratio')
+
+class Scenario(Base):
+    __tablename__ = 'scenarios'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    category = Column(String, nullable=False)
+    description = Column(String)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    variables = relationship('ScenarioVariable', backref='scenario', cascade='all, delete-orphan')
+
+
+class ScenarioVariable(Base):
+    __tablename__ = 'scenario_variables'
+    id = Column(Integer, primary_key=True)
+    scenario_id = Column(Integer, ForeignKey('scenarios.id'), nullable=False)
+    metric_id = Column(Integer, ForeignKey('metrics.id'), nullable=False)
+    operator = Column(String, nullable=False)
+    value = Column(Numeric, nullable=True)
+    __table_args__ = (UniqueConstraint('scenario_id', 'metric_id'),)
+
+    metric = relationship('Metric')
+
+class Forecasts(Base):
+    __tablename__ = 'forecasts'
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey('companies.id'), nullable=False)
+    scenario_id = Column(Integer, ForeignKey('scenarios.id'), nullable=False)
+    forecast_year = Column(Integer, nullable=False)
+    metric_id = Column(String, ForeignKey('metrics.id'), nullable=False)
+    value = Column(Numeric)
+    __table_args__ = (
+        UniqueConstraint('company_id', 'scenario_id', 'forecast_year', 'metric_id'),
+        Index('idx_forecast_company_scenario', 'company_id', 'scenario_id', 'forecast_year'),
+    )
