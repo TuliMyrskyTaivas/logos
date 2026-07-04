@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from typing import Generator
+from sqlalchemy.orm import sessionmaker
 import os
 
 # SQLAlchemy Database URL configuration
@@ -14,12 +13,3 @@ DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NA
 
 engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(bind=engine)
-
-
-def get_db() -> Generator[Session, None, None]:
-    """Dependency that provides a database session."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()

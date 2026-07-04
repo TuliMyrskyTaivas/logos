@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from crud import add_financial_data
-from database import get_db
+from database import SessionLocal
 
 def is_year(value : Any) -> bool:
     """
@@ -266,13 +266,13 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
             'итого внеоборотных активов', 'всего внеоборотных активов',
             'итого внеоборотные активы', 'всего внеоборотные активы',
             'внеоборотные активы',
-            'non-current assets', 'long-term assets', 'fixed assets',
-            'итого по разделу i'
+            'non-current assets', 'long-term assets', 'fixed assets'
         ], year_columns)
 
         data['accounts_receivable'] = find_indicator(balance_sheet, [
             'дебиторская задолженность', 'итого дебиторская задолженность',
             'торговая и прочая дебиторская задолженность',
+            'торговая дебиторская задолженность',
             'дебиторская задолженность за минусом резерва под ожидаемые кредитные убытки',
             'торговая и прочая дебиторская задолженность и расходы будущих периодов',
             'всего дебиторская задолженность', 'accounts receivable',
@@ -287,7 +287,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
 
         data['total_equity'] = find_indicator(balance_sheet, [
             'всего капитал и резервы', 'итого капитал и резервы', 'итого капитала',
-            'итого капитал'
+            'итого капитал', 'итого собственный капитал'
         ], year_columns)
 
         data['long_term_liabilities'] = find_indicator(balance_sheet, [
@@ -800,6 +800,7 @@ Usage examples:
     )
     parser.add_argument('file_path', type=str, help='Path to the Excel file containing IFRS statements')
     parser.add_argument('--company', '-o', type=str, help='Company name', default=None)
+    parser.add_argument('--ticker', '-t', type=str, help='Company ticker symbol', default=None)
     parser.add_argument('--industry', '-i', type=str, help='Industry name', default=None)
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output with detailed information about the analysis process')
 
@@ -833,18 +834,14 @@ Usage examples:
             if series is not None
         }
 
-        db_gen = get_db()
-        session = next(db_gen)
-        try:
-            add_financial_data(session, args.company, args.industry, metrics_data, ratios)
-            session.commit()
-            print("Data saved to the database")
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-            db_gen.close()
+        with SessionLocal() as session:
+            try:
+                add_financial_data(session, args.company, args.ticker, args.industry, metrics_data, ratios)
+                session.commit()
+                print("Data saved to the database")
+            except Exception:
+                session.rollback()
+                raise
     else:
         print("Skipping database save: --company and --industry are required")
 

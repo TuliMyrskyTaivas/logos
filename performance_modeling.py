@@ -2,10 +2,21 @@ import argparse
 import logging
 import pandas as pd
 import numpy as np
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from typing import Dict, List, Tuple
-from database import get_db
-from models import Company, Metric, FiscalPeriod, RawFinancial, Scenario, ScenarioVariable
+from typing import Dict, List, Optional, Tuple
+from database import SessionLocal
+from models import Company, Forecasts, Metric, FiscalPeriod, RawFinancial, Scenario, ScenarioVariable
+
+def get_company_id(session: Session, company_name: str) -> Optional[int]:
+    """
+    Retrieve the company ID for the given company name.
+    Returns None if the company is not found.
+    """
+    with SessionLocal() as session:
+        stmt = select(Company.id).where(Company.name == company_name)
+        result = session.execute(stmt).scalar_one_or_none()
+    return result
 
 # ------------------------------------------------------------
 # Load historical data from the database and prepare it for modeling.
@@ -15,7 +26,7 @@ def load_historical_data(logger: logging.Logger, session: Session, company_name:
     Load data from the database for the specified company.
     Returns a pivot table (years × metric codes) and an ordered list of years.
     """
-    company = session.query(Company).filter(Company.name == company_name).first()
+    company = get_company_id(session, company_name)
     if not company:
         raise ValueError(f"Company '{company_name}' not found.")
 
@@ -27,7 +38,7 @@ def load_historical_data(logger: logging.Logger, session: Session, company_name:
         )
         .join(RawFinancial.period)
         .join(RawFinancial.metric)
-        .filter(RawFinancial.company_id == company.id)
+        .filter(RawFinancial.company_id == company)
         .all()
     )
     if not rows:
@@ -232,7 +243,7 @@ def play_scenarios(
 # ------------------------------------------------------------
 # Main function to run the modeling and output results.
 # ------------------------------------------------------------
-def forecast_scenarios(logger: logging.Logger, session: Session, company_name: str) -> pd.DataFrame:
+def forecast_scenarios(logger: logging.Logger, session: Session, company_name: str, year: Optional[int]) -> pd.DataFrame:
     """
     Main entry point for the forecasting model.
     Returns a dataframe with scenarios, breakeven points, safety margins, critical drops, and required price increases.
@@ -241,9 +252,16 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
 
     # Load historical data and generate scenarios
     df, years = load_historical_data(logger, session, company_name)
+    first_year = years[0]
     last_year = years[-1]
-    forecast_year = last_year + 1
-    #scenarios = generate_scenarios(logger, df, last_year, forecast_year)
+    if year is not None:
+        forecast_year = year
+    else:
+        forecast_year = last_year + 1
+
+    if forecast_year <= first_year or forecast_year > last_year + 1:
+        raise ValueError(f"Forecast year {forecast_year} is out of valid range ({first_year + 1} to {last_year + 1})")
+
     scenarios = play_scenarios(logger, session, df, last_year, forecast_year)
 
     # Calculate breakeven revenue for each scenario
@@ -287,6 +305,9 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
 
     for name, forecast in scenarios.items():
         rev = forecast.get("revenue")
+        operating_profit = forecast.get("operating_profit")
+        pretax_profit = forecast.get("pretax_profit")
+        net_profit = forecast.get("net_profit")
         cfo = forecast.get("cfo")
         fcf = forecast.get("free_cash_flow")
         ebitda = forecast.get("ebitda")
@@ -296,21 +317,88 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
         cash_flow_margin = forecast.get("cash_flow_margin")
 
         rows.append({
-            "Scenario": name.capitalize(),
-            "Revenue": f"{rev:,.0f}" if rev else "—",
-            "EBITDA": f"{ebitda:,.0f}" if ebitda is not None and not pd.isna(ebitda) else "—",
-            "EBITDA Margin, %": f"{ebitda_margin * 100:.1f}" if ebitda_margin is not None and not pd.isna(ebitda_margin) else "—",
-            "CFO": f"{cfo:,.0f}" if cfo is not None and not pd.isna(cfo) else "—",
-            "Free Cash Flow": f"{fcf:,.0f}" if fcf is not None and not pd.isna(fcf) else "—",
-            "Operating Margin, %": f"{operating_margin * 100:.1f}" if operating_margin is not None and not pd.isna(operating_margin) else "—",
-            "Net Margin, %": f"{net_margin * 100:.1f}" if net_margin is not None and not pd.isna(net_margin) else "—",
-            "Cash Flow Margin, %": f"{cash_flow_margin * 100:.1f}" if cash_flow_margin is not None and not pd.isna(cash_flow_margin) else "—",
-            "Breakeven": f"{be[name]:,.0f}" if not np.isinf(be.get(name, np.nan)) else "∞",
-            "Safety Margin, %": f"{(rev / be[name] - 1) * 100:.1f}" if rev and be.get(name) and be[name] > 0 else "—",
-            "Critical Drop, %": f"{critical_drop.get(name, 0):.1f}" if critical_drop.get(name) is not None else "—",
-            "Required Price Increase, %": f"{required_price_increase.get(name, 0):.1f}" if required_price_increase.get(name) is not None else "—",
+            "scenario": name.capitalize(),
+            "revenue": f"{rev:,.0f}" if rev else "—",
+            "operating_profit": f"{operating_profit:,.0f}" if operating_profit is not None and not pd.isna(operating_profit) else "—",
+            "pretax_profit": f"{pretax_profit:,.0f}" if pretax_profit is not None and not pd.isna(pretax_profit) else "—",
+            "net_profit": f"{net_profit:,.0f}" if net_profit is not None and not pd.isna(net_profit) else "—",
+            "ebitda": f"{ebitda:,.0f}" if ebitda is not None and not pd.isna(ebitda) else "—",
+            "ebitda_margin": f"{ebitda_margin * 100:.1f}" if ebitda_margin is not None and not pd.isna(ebitda_margin) else "—",
+            "cfo": f"{cfo:,.0f}" if cfo is not None and not pd.isna(cfo) else "—",
+            "free_cash_flow": f"{fcf:,.0f}" if fcf is not None and not pd.isna(fcf) else "—",
+            "operating_margin": f"{operating_margin * 100:.1f}" if operating_margin is not None and not pd.isna(operating_margin) else "—",
+            "net_margin": f"{net_margin * 100:.1f}" if net_margin is not None and not pd.isna(net_margin) else "—",
+            "cash_flow_margin": f"{cash_flow_margin * 100:.1f}" if cash_flow_margin is not None and not pd.isna(cash_flow_margin) else "—",
+            "breakeven": f"{be[name]:,.0f}" if not np.isinf(be.get(name, np.nan)) else "∞",
+            "safety_margin": f"{(rev / be[name] - 1) * 100:.1f}" if rev and be.get(name) and be[name] > 0 else "—",
+            "critical_drop": f"{critical_drop.get(name, 0):.1f}" if critical_drop.get(name) is not None else "—",
+            "required_price_increase": f"{required_price_increase.get(name, 0):.1f}" if required_price_increase.get(name) is not None else "—",
         })
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).set_index("scenario").sort_index()
+
+def save_simulation_results(
+    logger: logging.Logger,
+    session: Session,
+    company: str,
+    forecast_year: int,
+    forecast: pd.DataFrame
+):
+    company_id = get_company_id(session, company)
+    if company_id is None:
+        raise ValueError(f"Company '{company}' not found.")
+
+    # Iterate over the forecast DataFrame and save each scenario's results to the database
+    for row in forecast.itertuples():
+        scenario_name = str(row.Index).lower()
+        scenario = session.query(Scenario).filter(Scenario.code == scenario_name).first()
+        if not scenario:
+            logger.warning(f"Scenario '{scenario_name}' not found in the database. Skipping.")
+            continue  # Skip if the scenario is not found in the database
+
+        # Use column names to get metric values and save them to the database
+        for indicator in forecast.columns[1:]:  # Skip the first column (Scenario)
+            metric_code = indicator.replace(" ", "_").replace(",", "").replace("%", "").lower()
+            value = getattr(row, indicator, None)
+            if value is None or value == "—":
+                logger.warning(f"Value for indicator '{indicator}' in scenario '{scenario_name}' is not available. Skipping.")
+                continue  # Skip if the value is not available
+
+            metric = session.query(Metric).filter(Metric.code == metric_code).first()
+            if not metric:
+                logger.warning(f"Metric '{metric_code}' not found in the database. Skipping.")
+                continue  # Skip if the metric is not found in the database
+
+            numeric_value = value.replace(',', '') if isinstance(value, str) else value
+            try:
+                numeric_value = float(numeric_value)
+            except (TypeError, ValueError):
+                logger.warning(f"Value '{value}' for metric '{metric_code}' in scenario '{scenario_name}' is not numeric. Skipping.")
+                continue
+
+            existing_entry = (
+                session.query(Forecasts)
+                .filter(
+                    Forecasts.company_id == company_id,
+                    Forecasts.scenario_id == scenario.id,
+                    Forecasts.forecast_year == forecast_year,
+                    Forecasts.metric_id == metric.id,
+                )
+                .one_or_none()
+            )
+
+            if existing_entry is not None:
+                existing_entry.value = numeric_value
+            else:
+                forecast_entry = Forecasts(
+                    company_id=company_id,
+                    scenario_id=scenario.id,
+                    forecast_year=forecast_year,
+                    metric_id=metric.id,
+                    value=numeric_value,
+                )
+                session.add(forecast_entry)
+
+    session.flush()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -323,6 +411,8 @@ Usage examples:
         """
     )
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output for debugging')
+    parser.add_argument('--dry-run', '-d', action='store_true', help='Run the model without saving results to the database')
+    parser.add_argument('--year', '-y', type=int, help='Forecast year (default: next year after last historical data)')
     parser.add_argument('company_name', type=str, help='Name of the company to model')
     args = parser.parse_args()
 
@@ -340,11 +430,17 @@ Usage examples:
         handler.setFormatter(formatter)
 
     logger.addHandler(handler)
-
     logger.info("Starting financial modeling...")
 
-    db_gen = get_db()
-    session = next(db_gen)
-
-    result = forecast_scenarios(logger, session, args.company_name)
-    print(result)
+    try:
+        with SessionLocal() as session:
+            result = forecast_scenarios(logger, session, args.company_name, year=args.year)
+            print(result)
+            if not args.dry_run:
+                # Save results to the database
+                logger.info("Saving simulation results to the database...")
+                save_simulation_results(logger, session, args.company_name, forecast_year=args.year or (result.index[-1] + 1), forecast=result)
+                session.commit()
+                logger.info("Results saved successfully.")
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
