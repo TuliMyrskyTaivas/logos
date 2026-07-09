@@ -185,6 +185,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
 
         data['cogs'] = find_indicator(pnl_sheet, [
             'себестоимость', 'себестоимость продаж', 'себестоимость реализации',
+            'итого себестоимость',
             'cost of sales', 'cost of goods sold', 'cogs'
         ], year_columns)
 
@@ -231,6 +232,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
         data['sga'] = find_indicator(pnl_sheet, [
             'административные расходы', 'управленческие расходы',
             'общехозяйственные и административные расходы',
+            'коммерческие и административные расходы',
             'общие и административные расходы',
             'расходы на продажу', 'продажные и административные расходы',
             'коммерческие, общехозяйственные и административные расходы',
@@ -364,6 +366,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
                 'износ, истощение и амортизация',
                 'амортизация основных средств, нематериальных активов и активов в форме права пользования',
                 'амортизация', 'износ', 'амортизация и износ',
+                'амортизация основных средств и нематериальных активов',
                 'амортизация основных средств',
                 'depreciation', 'amortization', 'depreciation and amortization',
                 'depreciation expense', 'amortization expense'
@@ -492,8 +495,8 @@ def calculate_ratios(data : dict[str, pd.Series | None]) -> pd.DataFrame:
             print("  - 'Revenue' is missing")
 
     # 6. SGAI - Sales, General and Administrative Expenses Index
-    if data.get('SG&A') is not None and data.get('revenue') is not None:
-        sga_ratio = safe_divide(data['SG&A'], data['revenue'])
+    if data.get('sga') is not None and data.get('revenue') is not None:
+        sga_ratio = safe_divide(data['sga'], data['revenue'])
         if isinstance(sga_ratio, pd.Series):
             results['sgai'] = sga_ratio.div(sga_ratio.shift(1))
             print("✓ SGAI (Sales, General and Administrative Expenses Index) calculated")
@@ -501,7 +504,7 @@ def calculate_ratios(data : dict[str, pd.Series | None]) -> pd.DataFrame:
             print("⚠ Impossible to calculate SGAI: failed to compute SG&A to revenue ratio")
     else:
         print("⚠ Impossible to calculate SGAI: not enough data")
-        if data.get('SG&A') is None:
+        if data.get('sga') is None:
             print("  - 'SG&A' is missing")
         if data.get('revenue') is None:
             print("  - 'Revenue' is missing")
@@ -546,19 +549,19 @@ def calculate_ratios(data : dict[str, pd.Series | None]) -> pd.DataFrame:
         print("  - 'Revenue' is missing")
 
     # 8. M-Score (Beneish M-score)
-    required_mscore = ['DSRI', 'GMI', 'AQI', 'SGI', 'DEPI', 'SGAI', 'LVGI', 'TATA']
+    required_mscore = ['dsri', 'gmi', 'aqi', 'sgi', 'depi', 'sgai', 'lvgi', 'tata']
     missing_mscore = [col for col in required_mscore if col not in results.columns]
     if not missing_mscore:
         results['m_score'] = (
             -4.84
-            + 0.92 * results['DSRI']
-            + 0.528 * results['GMI']
-            + 0.404 * results['AQI']
-            + 0.892 * results['SGI']
-            + 0.115 * results['DEPI']
-            - 0.172 * results['SGAI']
-            + 4.679 * results['TATA']
-            - 0.327 * results['LVGI']
+            + 0.92 * results['dsri']
+            + 0.528 * results['gmi']
+            + 0.404 * results['aqi']
+            + 0.892 * results['sgi']
+            + 0.115 * results['depi']
+            - 0.172 * results['sgai']
+            + 4.679 * results['tata']
+            - 0.327 * results['lvgi']
         )
         print("✓ M-Score (Beneish M-score) calculated")
     else:
@@ -567,12 +570,12 @@ def calculate_ratios(data : dict[str, pd.Series | None]) -> pd.DataFrame:
             print(f"  - {col}")
 
     # 9. ROFA - Return on Fixed Assets
-    if data.get('net_income') is not None and data.get('fixed_assets') is not None:
-        results['rofa'] = safe_divide(data['net_income'], data['fixed_assets'])
+    if data.get('net_profit') is not None and data.get('fixed_assets') is not None:
+        results['rofa'] = safe_divide(data['net_profit'], data['fixed_assets'])
         print("✓ ROFA calculated (Return on Fixed Assets)")
     else:
         print("⚠ Impossible to calculate ROFA: not enough data")
-        if data.get('net_income') is None:
+        if data.get('net_profit') is None:
             print("  - 'Net Income' is missing")
         if data.get('fixed_assets') is None:
             print("  - 'Fixed Assets' is missing")
