@@ -71,13 +71,13 @@ def extrapolate(
 
     x = valid.index.values.astype(float)
     y = valid.values.astype(float)
-    slope, intercept = np.polynomial.Polynomial.fit(x, y, 1)
-    return slope * target_year + intercept
+
+    coeffs = np.polyfit(x, y, 1)
+    return np.polyval(coeffs, target_year)
 
 def extrapolate_series(
     df: pd.DataFrame,
-    target_year: int,
-    min_hist: int = 3,
+    target_year: int
 ) -> pd.Series:
     """
     For each column (metric) in df, build a forecast for target_year.
@@ -89,9 +89,7 @@ def extrapolate_series(
         if len(series) < 2:
             result[col] = series.iloc[-1] if len(series) > 0 else np.nan
         else:
-            # take the last min_hist points (or as many as available)
-            recent = series.iloc[-min_hist:] if len(series) >= min_hist else series
-            result[col] = extrapolate(recent, target_year)
+            result[col] = extrapolate(series, target_year)
     return pd.Series(result)
 
 def recalculate_indicators(projection: pd.Series) -> pd.Series:
