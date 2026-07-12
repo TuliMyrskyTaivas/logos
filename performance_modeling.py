@@ -99,8 +99,8 @@ def recalculate_indicators(projection: pd.Series) -> pd.Series:
     in revenue, costs, depreciation and interest.
     """
     rev = projection.get("revenue", 0)
-    cogs = abs(projection.get("cogs", 0))
-    sga = abs(projection.get("sga", 0))
+    cogs = projection.get("cogs", 0)
+    sga = projection.get("sga", 0)
     depr = projection.get("depreciation", 0)
     int_exp = projection.get("interest_expense", 0)
 
@@ -152,8 +152,8 @@ def breakeven_analysis(base: pd.Series) -> float:
     if pd.isna(rev) or pd.isna(cogs) or rev == 0:
         return np.nan
 
-    fixed_costs = abs(sga) + abs(depr)
-    variable_ratio = abs(cogs) / rev
+    fixed_costs = sga + depr
+    variable_ratio = cogs / rev
     if variable_ratio >= 1:
         return np.inf  # company has structurally negative contribution margin
 

@@ -108,7 +108,8 @@ def find_indicator(df : pd.DataFrame, patterns : list[str], year_columns : dict[
                         try:
                             numeric_value = pd.to_numeric(cell_value, errors='coerce')
                             if not pd.isna(numeric_value):
-                                data_dict[year] = numeric_value
+                                # Import all values as positives
+                                data_dict[year] = abs(numeric_value)
                         except:
                             pass
 
@@ -361,6 +362,13 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
             'cash flows from investing activities'
         ], year_columns)
 
+        data['capex'] = find_indicator(cash_flow, [
+            'приобретение объектов основных средств и нематериальных активов',
+            'приобретение основных средств и прочих внеоборотных активов',
+            'приобретение основных средств',
+            'капитальные затраты'
+        ], year_columns)
+
         if data.get('depreciation') is None:
             data['depreciation'] = find_indicator(cash_flow, [
                 'износ, истощение и амортизация',
@@ -398,7 +406,7 @@ def calculate_ratios(data : dict[str, pd.Series | None]) -> pd.DataFrame:
 
     # 1. ICR - Interest Coverage Ratio
     if data.get('operating_profit') is not None and data.get('interest_expense') is not None:
-        results['icr'] = safe_divide(data['operating_profit'], data['interest_expense'].abs())
+        results['icr'] = safe_divide(data['operating_profit'], data['interest_expense'])
         print("✓ ICR (Interest Coverage Ratio) calculated (Operating Profit / Interest Expense)")
     else:
         print("Impossible to calculate ICR: not enough data")
@@ -511,7 +519,7 @@ def calculate_ratios(data : dict[str, pd.Series | None]) -> pd.DataFrame:
 
     # 7. DEPI - Depreciation Index
     if data.get('depreciation') is not None and data.get('fixed_assets') is not None:
-        depreciation_ratio = safe_divide(data['depreciation'].shift(1).abs(), data['depreciation'].abs())
+        depreciation_ratio = safe_divide(data['depreciation'].shift(1), data['depreciation'])
         ppe_ratio = safe_divide(data['fixed_assets'], data['fixed_assets'].shift(1))
         if isinstance(depreciation_ratio, pd.Series) and isinstance(ppe_ratio, pd.Series):
             results['depi'] = safe_divide(depreciation_ratio, ppe_ratio)
