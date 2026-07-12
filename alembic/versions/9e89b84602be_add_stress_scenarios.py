@@ -42,29 +42,30 @@ def upgrade() -> None:
         sa.column('description', sa.String)
     )
     op.bulk_insert(scenarios, [
-        {'id': 1, 'code': 'mild_stress', 'name': 'Mild Stress (-10% Revenue)', 'category': 'demand_shock',
+        {'id': 1, 'code': 'base', 'name': 'Base Scenario', 'description': 'Simple extrapolation of revenues and expenses'},
+        {'id': 2, 'code': 'mild_stress', 'name': 'Mild Stress (-10% Revenue)', 'category': 'demand_shock',
          'description': 'Moderate decline in demand: revenue -10%, cost price is scaling.'},
-        {'id': 2, 'code': 'severe_stress', 'name': 'Severe Stress (-20% Rev, +20% COGS)', 'category': 'demand_shock',
+        {'id': 3, 'code': 'severe_stress', 'name': 'Severe Stress (-20% Rev, +20% COGS)', 'category': 'demand_shock',
          'description': 'Hard shock: revenue -20%, cost +20%.'},
-        {'id': 3, 'code': 'deep_recession', 'name': 'Deep Recession (-30% Revenue)', 'category': 'demand_shock',
+        {'id': 4, 'code': 'deep_recession', 'name': 'Deep Recession (-30% Revenue)', 'category': 'demand_shock',
          'description': 'Deep recession: revenue -30%, variable costs proportional.'},
-        {'id': 4, 'code': 'pandemic', 'name': 'Pandemic-style (-50% Rev, SGA -20%)', 'category': 'demand_shock',
+        {'id': 5, 'code': 'pandemic', 'name': 'Pandemic-style (-50% Rev, SGA -20%)', 'category': 'demand_shock',
          'description': 'Lockdown: revenue -50%, SGA only reduced by 20%.'},
-        {'id': 5, 'code': 'cost_inflation', 'name': 'Cost-push Inflation (COGS +15%, SGA +10%)', 'category': 'cost_shock',
+        {'id': 6, 'code': 'cost_inflation', 'name': 'Cost-push Inflation (COGS +15%, SGA +10%)', 'category': 'cost_shock',
          'description': 'Cost inflation: cost price +15%, overhead +10%.'},
-        {'id': 6, 'code': 'commodity_cycle', 'name': 'Commodity Super-cycle (COGS +40%)', 'category': 'cost_shock',
+        {'id': 7, 'code': 'commodity_cycle', 'name': 'Commodity Super-cycle (COGS +40%)', 'category': 'cost_shock',
          'description': 'Raw material cost jump: cost price +40%.'},
-        {'id': 7, 'code': 'rate_hike', 'name': 'Rate Hike (+300 bps)', 'category': 'rate_shock',
+        {'id': 8, 'code': 'rate_hike', 'name': 'Rate Hike (+300 bps)', 'category': 'rate_shock',
          'description': 'Increase in the Central Bank rate: interest expenses +30%.'},
-        {'id': 8, 'code': 'ruble_devaluation', 'name': 'Ruble Devaluation (-25%)', 'category': 'rate_shock',
+        {'id': 9, 'code': 'ruble_devaluation', 'name': 'Ruble Devaluation (-25%)', 'category': 'rate_shock',
          'description': 'Ruble weakening: revenue +5%, COGS +15%, interest +25%.'},
-        {'id': 9, 'code': 'liquidity_crunch', 'name': 'Liquidity Crunch (AR +50%)', 'category': 'liquidity',
+        {'id': 10, 'code': 'liquidity_crunch', 'name': 'Liquidity Crunch (AR +50%)', 'category': 'liquidity',
          'description': 'Freezing of working capital: accounts receivable +50%, CFO falls.'},
-        {'id': 10, 'code': 'perfect_storm', 'name': 'Perfect Storm (-15% Rev, +10% COGS, +20% Int)', 'category': 'combined',
+        {'id': 11, 'code': 'perfect_storm', 'name': 'Perfect Storm (-15% Rev, +10% COGS, +20% Int)', 'category': 'combined',
          'description': 'A perfect storm: falling revenues, rising costs and rates all at the same time.'},
-        {'id': 11, 'code': 'booming_demand', 'name': 'Booming Demand (+15% Revenue)', 'category': 'upside',
+        {'id': 12, 'code': 'booming_demand', 'name': 'Booming Demand (+15% Revenue)', 'category': 'upside',
          'description': 'Demand boom: revenue +15%.'},
-        {'id': 12, 'code': 'op_efficiency', 'name': 'Operational Efficiency (SGA -10%)', 'category': 'upside',
+        {'id': 13, 'code': 'op_efficiency', 'name': 'Operational Efficiency (SGA -10%)', 'category': 'upside',
          'description': 'Optimization: general business expenses -10%.'}
     ])
 
@@ -89,41 +90,41 @@ def upgrade() -> None:
         sa.column('value', sa.Numeric)
     )
     op.bulk_insert(scenario_variables, [
-        # id=1 -> mild_stress,  revenue -10 %
-        {'scenario_id': 1, 'metric_id': 1, 'operator': 'multiply', 'value': 0.9 },
-        # id=2 -> severe_stress, revenue -20 %, cogs +20 %
-        {'scenario_id': 2, 'metric_id': 1, 'operator': 'multiply', 'value': 0.8 },
-        {'scenario_id': 2, 'metric_id': 2, 'operator': 'multiply', 'value': 1.2 },
-        # id=3 -> deep_recession, revenue -30%, cogs +30%, sga +10%, depreciation +10%
-        {'scenario_id': 3, 'metric_id': 1, 'operator': 'multiply', 'value': 0.7 },
-        {'scenario_id': 3, 'metric_id': 2, 'operator': 'multiply', 'value': 1.3 },
-        {'scenario_id': 3, 'metric_id': 4, 'operator': 'multiply', 'value': 0.7 },
-        {'scenario_id': 3, 'metric_id': 5, 'operator': 'multiply', 'value': 0.7 },
-        # id=4 -> pandemic, revenue -50% , sga -20%
-        {'scenario_id': 4, 'metric_id': 1, 'operator': 'multiply', 'value': 0.5 },
-        {'scenario_id': 4, 'metric_id': 4, 'operator': 'multiply', 'value': 0.8 },
-        # id=5 -> cost_inflation, cogs +15%, sga +10%
-        {'scenario_id': 5, 'metric_id': 2, 'operator': 'multiply', 'value': 1.15 },
-        {'scenario_id': 5, 'metric_id': 4, 'operator': 'multiply', 'value': 1.10 },
-        # id=6 -> commodity_cycle, cogs +40%
-        {'scenario_id': 6, 'metric_id': 2, 'operator': 'multiply', 'value': 1.40 },
-        # id=7 -> rate_hike, interest_expense +30%
-        {'scenario_id': 7, 'metric_id': 7, 'operator': 'multiply', 'value': 1.30 },
-        # id=8 -> ruble_devaluation, revenue +5%, cogs +15%, interest_expense +25%
-        {'scenario_id': 8, 'metric_id': 1, 'operator': 'multiply', 'value': 1.05 },
-        {'scenario_id': 8, 'metric_id': 2, 'operator': 'multiply', 'value': 1.15 },
-        {'scenario_id': 8, 'metric_id': 7, 'operator': 'multiply', 'value': 1.25 },
-        # id=9 -> liquidity_crunch, interest_expense +50%, revenue -15%
-        {'scenario_id': 9, 'metric_id': 1, 'operator': 'multiply', 'value': 0.85 },
-        {'scenario_id': 9, 'metric_id': 7, 'operator': 'multiply', 'value': 1.50 },
-        # id=10 -> perfect_storm, revenue -15%, cogs +10%, interest_expense +20%
+        # id=2 -> mild_stress,  revenue -10 %
+        {'scenario_id': 2, 'metric_id': 1, 'operator': 'multiply', 'value': 0.9 },
+        # id=3 -> severe_stress, revenue -20 %, cogs +20 %
+        {'scenario_id': 3, 'metric_id': 1, 'operator': 'multiply', 'value': 0.8 },
+        {'scenario_id': 3, 'metric_id': 2, 'operator': 'multiply', 'value': 1.2 },
+        # id=4 -> deep_recession, revenue -30%, cogs +30%, sga +10%, depreciation +10%
+        {'scenario_id': 4, 'metric_id': 1, 'operator': 'multiply', 'value': 0.7 },
+        {'scenario_id': 4, 'metric_id': 2, 'operator': 'multiply', 'value': 1.3 },
+        {'scenario_id': 4, 'metric_id': 4, 'operator': 'multiply', 'value': 0.7 },
+        {'scenario_id': 4, 'metric_id': 5, 'operator': 'multiply', 'value': 0.7 },
+        # id=5-> pandemic, revenue -50% , sga -20%
+        {'scenario_id': 5, 'metric_id': 1, 'operator': 'multiply', 'value': 0.5 },
+        {'scenario_id': 5, 'metric_id': 4, 'operator': 'multiply', 'value': 0.8 },
+        # id=6 -> cost_inflation, cogs +15%, sga +10%
+        {'scenario_id': 6, 'metric_id': 2, 'operator': 'multiply', 'value': 1.15 },
+        {'scenario_id': 6, 'metric_id': 4, 'operator': 'multiply', 'value': 1.10 },
+        # id=7 -> commodity_cycle, cogs +40%
+        {'scenario_id': 7, 'metric_id': 2, 'operator': 'multiply', 'value': 1.40 },
+        # id=8 -> rate_hike, interest_expense +30%
+        {'scenario_id': 8, 'metric_id': 7, 'operator': 'multiply', 'value': 1.30 },
+        # id=9 -> ruble_devaluation, revenue +5%, cogs +15%, interest_expense +25%
+        {'scenario_id': 9, 'metric_id': 1, 'operator': 'multiply', 'value': 1.05 },
+        {'scenario_id': 9, 'metric_id': 2, 'operator': 'multiply', 'value': 1.15 },
+        {'scenario_id': 9, 'metric_id': 7, 'operator': 'multiply', 'value': 1.25 },
+        # id=10 -> liquidity_crunch, interest_expense +50%, revenue -15%
         {'scenario_id': 10, 'metric_id': 1, 'operator': 'multiply', 'value': 0.85 },
-        {'scenario_id': 10, 'metric_id': 2, 'operator': 'multiply', 'value': 1.10 },
-        {'scenario_id': 10, 'metric_id': 7, 'operator': 'multiply', 'value': 1.20 },
-        # id=11 -> booming_demand, revenue +15%
-        {'scenario_id': 11, 'metric_id': 1, 'operator': 'multiply', 'value': 1.15 },
-        # id=12 -> op_efficiency, sga -10%
-        {'scenario_id': 12, 'metric_id': 4, 'operator': 'multiply', 'value': 0.9 },
+        {'scenario_id': 10, 'metric_id': 7, 'operator': 'multiply', 'value': 1.50 },
+        # id=11 -> perfect_storm, revenue -15%, cogs +10%, interest_expense +20%
+        {'scenario_id': 11, 'metric_id': 1, 'operator': 'multiply', 'value': 0.85 },
+        {'scenario_id': 11, 'metric_id': 2, 'operator': 'multiply', 'value': 1.10 },
+        {'scenario_id': 11, 'metric_id': 7, 'operator': 'multiply', 'value': 1.20 },
+        # id=12 -> booming_demand, revenue +15%
+        {'scenario_id': 12, 'metric_id': 1, 'operator': 'multiply', 'value': 1.15 },
+        # id=13 -> op_efficiency, sga -10%
+        {'scenario_id': 13, 'metric_id': 4, 'operator': 'multiply', 'value': 0.9 },
     ])
 
     op.create_table('forecasts',

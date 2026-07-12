@@ -241,7 +241,7 @@ def play_scenarios(
 # ------------------------------------------------------------
 # Main function to run the modeling and output results.
 # ------------------------------------------------------------
-def forecast_scenarios(logger: logging.Logger, session: Session, company_name: str, year: Optional[int]) -> pd.DataFrame:
+def forecast_scenarios(logger: logging.Logger, session: Session, company_name: str, year: Optional[int]) -> Tuple[pd.DataFrame, int]:
     """
     Main entry point for the forecasting model.
     Returns a dataframe with scenarios, breakeven points, safety margins, critical drops, and required price increases.
@@ -323,7 +323,7 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
             "ebitda": f"{ebitda:,.0f}" if ebitda is not None and not pd.isna(ebitda) else "—",
             "ebitda_margin": f"{ebitda_margin * 100:.1f}" if ebitda_margin is not None and not pd.isna(ebitda_margin) else "—",
             "cfo": f"{cfo:,.0f}" if cfo is not None and not pd.isna(cfo) else "—",
-            "free_cash_flow": f"{fcf:,.0f}" if fcf is not None and not pd.isna(fcf) else "—",
+            "fcf": f"{fcf:,.0f}" if fcf is not None and not pd.isna(fcf) else "—",
             "operating_margin": f"{operating_margin * 100:.1f}" if operating_margin is not None and not pd.isna(operating_margin) else "—",
             "net_margin": f"{net_margin * 100:.1f}" if net_margin is not None and not pd.isna(net_margin) else "—",
             "cash_flow_margin": f"{cash_flow_margin * 100:.1f}" if cash_flow_margin is not None and not pd.isna(cash_flow_margin) else "—",
@@ -332,7 +332,7 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
             "critical_drop": f"{critical_drop.get(name, 0):.1f}" if critical_drop.get(name) is not None else "—",
             "required_price_increase": f"{required_price_increase.get(name, 0):.1f}" if required_price_increase.get(name) is not None else "—",
         })
-    return pd.DataFrame(rows).set_index("scenario").sort_index()
+    return pd.DataFrame(rows).set_index("scenario").sort_index(), forecast_year
 
 def save_simulation_results(
     logger: logging.Logger,
@@ -341,6 +341,7 @@ def save_simulation_results(
     forecast_year: int,
     forecast: pd.DataFrame
 ):
+    logger.debug(f"Saving {forecast_year} forecasts for {company} to the database")
     company_id = get_company_id(session, company)
     if company_id is None:
         raise ValueError(f"Company '{company}' not found.")
@@ -432,13 +433,15 @@ Usage examples:
 
     try:
         with SessionLocal() as session:
-            result = forecast_scenarios(logger, session, args.company_name, year=args.year)
+            result, forecast_year = forecast_scenarios(logger, session, args.company_name, year=args.year)
             print(result)
             if not args.dry_run:
                 # Save results to the database
                 logger.info("Saving simulation results to the database...")
-                save_simulation_results(logger, session, args.company_name, forecast_year=args.year or (result.index[-1] + 1), forecast=result)
+                save_simulation_results(logger, session, args.company_name, forecast_year=forecast_year, forecast=result)
                 session.commit()
                 logger.info("Results saved successfully.")
     except Exception as e:
+        import traceback
         logger.error(f"An error occurred: {e}")
+        logger.error(traceback.print_exception(e))

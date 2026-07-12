@@ -113,7 +113,9 @@ def upgrade() -> None:
         {'id': 19, 'name': 'Электроэнергетика', 'code': 'ENERGY', 'parent_id': None},
         {'id': 20, 'name': 'Коммунальные услуги', 'code': 'ENERGY_PRODUCTION', 'parent_id': 19},
         {'id': 21, 'name': 'Химическая промышленность', 'code': 'CHEMICAL', 'parent_id': None},
-        {'id': 22, 'name': 'Производство минеральных удобрений', 'code': 'CHEMICAL_FERTILIZERS', 'parent_id': 21}
+        {'id': 22, 'name': 'Производство минеральных удобрений', 'code': 'CHEMICAL_FERTILIZERS', 'parent_id': 21},
+        {'id': 23, 'name': 'Цветная металлургия', 'code': 'NON_FERROUS_METALS', 'parent_id': None},
+        {'id': 24, 'name': 'Золотодобыча', 'code': 'GOLD_MINERS', 'parent_id': 23},
     ])
 
     # IFRS metrics
@@ -124,7 +126,7 @@ def upgrade() -> None:
         sa.column('category', sa.String)
     )
     op.bulk_insert(metrics_table, [
-        # ОПУ
+        # Income statement
         {'id': 1, 'code': 'revenue', 'name': 'Выручка', 'category': 'P&L'},
         {'id': 2, 'code': 'cogs', 'name': 'Себестоимость', 'category': 'P&L'},
         {'id': 3, 'code': 'gross_profit', 'name': 'Валовая прибыль', 'category': 'P&L'},
@@ -134,7 +136,7 @@ def upgrade() -> None:
         {'id': 7, 'code': 'interest_expense', 'name': 'Процентные расходы', 'category': 'P&L'},
         {'id': 8, 'code': 'pretax_profit', 'name': 'Прибыль до налогообложения', 'category': 'P&L'},
         {'id': 9, 'code': 'net_profit', 'name': 'Чистая прибыль', 'category': 'P&L'},
-        # Баланс
+        # Balance sheet
         {'id': 10, 'code': 'non_current_assets', 'name': 'Внеоборотные активы', 'category': 'BS'},
         {'id': 11, 'code': 'fixed_assets', 'name': 'Основные средства', 'category': 'BS'},
         {'id': 12, 'code': 'current_assets', 'name': 'Оборотные активы', 'category': 'BS'},
@@ -142,10 +144,22 @@ def upgrade() -> None:
         {'id': 14, 'code': 'total_equity', 'name': 'Общий капитал', 'category': 'BS'},
         {'id': 15, 'code': 'current_liabilities', 'name': 'Краткосрочные обязательства', 'category': 'BS'},
         {'id': 16, 'code': 'long_term_liabilities', 'name': 'Долгосрочные обязательства', 'category': 'BS'},
-        # ДДС
+        # Cache flow statement
         {'id': 17, 'code': 'cfo', 'name': 'Чистый опер. ден. поток', 'category': 'CF'},
         {'id': 18, 'code': 'cff', 'name': 'Чистый фин. ден. поток', 'category': 'CF'},
         {'id': 19, 'code': 'cfi', 'name': 'Чистый инвест. ден. поток', 'category': 'CF'},
+        {'id': 20, 'code': 'fcf', 'name': 'Чистый денежный поток', 'category': 'CF'},
+        {'id': 21, 'code': 'capex', 'name': 'Капитальные затраты', 'category': 'CF'},
+        # Forecast
+        {'id': 22, 'code': 'ebitda', 'name': 'EBITDA', 'category': 'Forecast'},
+        {'id': 23, 'code': 'ebitda_margin', 'name': 'Маржинальность EBITDA', 'category': 'Forecast'},
+        {'id': 24, 'code': 'operating_margin', 'name': 'Операционная маржа', 'category': 'Forecast'},
+        {'id': 25, 'code': 'net_margin', 'name': 'Чистая маржа', 'category': 'Forecast'},
+        {'id': 26, 'code': 'cash_flow_margin', 'name': 'Маржа денежного потока', 'category': 'Forecast'},
+        {'id': 27, 'code': 'breakeven', 'name': 'Порог безубыточности', 'category': 'Forecast'},
+        {'id': 28, 'code': 'safety_margin', 'name': 'Запас прочности', 'category': 'Forecast'},
+        {'id': 29, 'code': 'critical_drop', 'name': 'Критическое падение', 'category': 'Forecast'},
+        {'id': 30, 'code': 'required_price_increase', 'name': 'Требуемое повышение цен', 'category': 'Forecast'},
     ])
 
     # Ratios
@@ -181,7 +195,9 @@ def upgrade() -> None:
          'formula': '(accounts_receivable / revenue) / (accounts_receivable(-1) / revenue(-1))'},
         {'id': 12, 'code': 'sgi', 'name': 'Sales Growth Index',
          'formula': '(revenue / revenue(-1)) - 1'},
-        {'id': 13, 'code': 'm_score', 'name': 'M-Score',
+        {'id': 13, 'code': 'lvgi', 'name': 'Leverage',
+         'formula': '((Total Debt / Equity)) / (Total Debt(-1)/Equity(-1))'},
+        {'id': 14, 'code': 'm_score', 'name': 'M-Score',
          'formula': 'Summary indicator Beneish M-Score'},
     ])
 
