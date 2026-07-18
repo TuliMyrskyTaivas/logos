@@ -69,11 +69,8 @@ def extrapolate(
     if len(valid) < 2:
         return valid.iloc[-1]  # no base for trend – return the last value
 
-    x = valid.index.values.astype(float)
-    y = valid.values.astype(float)
-
-    coeffs = np.polyfit(x, y, 1)
-    return np.polyval(coeffs, target_year)
+    poly = np.polynomial.Polynomial.fit(series.index.to_numpy(), series.to_numpy(), 1, window=None, full=False)
+    return poly(target_year)
 
 def extrapolate_series(
     df: pd.DataFrame,
@@ -234,7 +231,7 @@ def play_scenarios(
 
     logger.info(f"{len(scenarios)} active scenarios loaded from the database")
     for scenario in scenarios:
-        forecasts[scenario.code] = play_scenario(logger, session, int(scenario.id), base)
+        forecasts[scenario.code] = play_scenario(logger, session, scenario.id, base)
 
     return forecasts
 
