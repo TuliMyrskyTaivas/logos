@@ -5,7 +5,7 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Tuple
-from database import SessionLocal
+from database import get_session
 from models import Company, Forecasts, Metric, FiscalPeriod, RawFinancial, Scenario, ScenarioVariable
 
 def get_company_id(session: Session, company_name: str) -> Optional[int]:
@@ -13,9 +13,8 @@ def get_company_id(session: Session, company_name: str) -> Optional[int]:
     Retrieve the company ID for the given company name.
     Returns None if the company is not found.
     """
-    with SessionLocal() as session:
-        stmt = select(Company.id).where(Company.name == company_name)
-        result = session.execute(stmt).scalar_one_or_none()
+    stmt = select(Company.id).where(Company.name == company_name)
+    result = session.execute(stmt).scalar_one_or_none()
     return result
 
 # ------------------------------------------------------------
@@ -429,7 +428,8 @@ Usage examples:
     logger.info("Starting financial modeling...")
 
     try:
-        with SessionLocal() as session:
+        AnalystSession = get_session('analyst', 'analyst_password')
+        with AnalystSession() as session:
             result, forecast_year = forecast_scenarios(logger, session, args.company_name, year=args.year)
             print(result)
             if not args.dry_run:

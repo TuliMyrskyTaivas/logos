@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from crud import add_financial_data
-from database import SessionLocal
+from database import get_session
 
 def is_year(value : Any) -> bool:
     """
@@ -845,7 +845,8 @@ Usage examples:
             if series is not None
         }
 
-        with SessionLocal() as session:
+        ImporterSession = get_session('importer', 'IMPORTER_PASSWORD')
+        with ImporterSession() as session:
             try:
                 add_financial_data(session, args.company, args.ticker, args.industry, metrics_data, ratios)
                 session.commit()

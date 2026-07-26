@@ -29,9 +29,10 @@ def upgrade() -> None:
         sa.Column('description', sa.String(), nullable=True),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.sql.expression.true()),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.PrimaryKeyConstraint('id')
+        sa.PrimaryKeyConstraint('id'),
+        schema='logos'
     )
-    op.create_unique_constraint('uq_scenarios_code', 'scenarios', ['code'])
+    op.create_unique_constraint('uq_scenarios_code', 'scenarios', ['code'], schema='logos')
 
     # Fill scenarios table
     scenarios = sa.table('scenarios',
@@ -39,7 +40,8 @@ def upgrade() -> None:
         sa.column('code', sa.String),
         sa.column('name', sa.String),
         sa.column('category', sa.String),
-        sa.column('description', sa.String)
+        sa.column('description', sa.String),
+        schema='logos'
     )
     op.bulk_insert(scenarios, [
         {'id': 1, 'code': 'base', 'name': 'Base Scenario', 'description': 'Simple extrapolation of revenues and expenses'},
@@ -76,18 +78,20 @@ def upgrade() -> None:
         sa.Column('metric_id', sa.Integer(), nullable=False),
         sa.Column('operator', sa.String(), nullable=False),
         sa.Column('value', sa.Numeric(), nullable=False),
-        sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['metric_id'], ['metrics.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id')
+        sa.ForeignKeyConstraint(['scenario_id'], ['logos.scenarios.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['metric_id'], ['logos.metrics.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+        schema='logos'
     )
-    op.create_unique_constraint('uq_scenario_metric', 'scenario_variables', ['scenario_id', 'metric_id'])
+    op.create_unique_constraint('uq_scenario_metric', 'scenario_variables', ['scenario_id', 'metric_id'], schema='logos')
 
     # Fill scenario variables
     scenario_variables = sa.table('scenario_variables',
         sa.column('scenario_id', sa.Integer),
         sa.column('metric_id', sa.Integer),
         sa.column('operator', sa.String),
-        sa.column('value', sa.Numeric)
+        sa.column('value', sa.Numeric),
+        schema='logos'
     )
     op.bulk_insert(scenario_variables, [
         # id=2 -> mild_stress,  revenue -10 %
@@ -134,19 +138,24 @@ def upgrade() -> None:
         sa.Column('forecast_year', sa.Integer(), nullable=False),
         sa.Column('metric_id', sa.Integer(), nullable=False),
         sa.Column('value', sa.Numeric(), nullable=False),
-        sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['metric_id'], ['metrics.id'], ondelete='CASCADE')
+        sa.ForeignKeyConstraint(['company_id'], ['logos.companies.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['scenario_id'], ['logos.scenarios.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['metric_id'], ['logos.metrics.id'], ondelete='CASCADE'),
+        schema='logos'
     )
-    op.create_unique_constraint('uq_forecast_company_scenario_metric', 'forecasts', ['company_id', 'scenario_id', 'forecast_year', 'metric_id'])
-    op.create_index('idx_forecast_company_scenario', 'forecasts', ['company_id', 'scenario_id', 'forecast_year'])
+    op.create_unique_constraint('uq_forecast_company_scenario_metric', 'forecasts', ['company_id', 'scenario_id', 'forecast_year', 'metric_id'], schema='logos')
+    op.create_index('idx_forecast_company_scenario', 'forecasts', ['company_id', 'scenario_id', 'forecast_year'], schema='logos')
+
+    # Grant privileges to users
+    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE logos.forecasts TO analyst")
+    op.execute("GRANT SELECT ON TABLE logos.scenarios, logos.scenario_variables TO analyst")
+    op.execute("GRANT USAGE, SELECT ON SEQUENCE logos.forecasts_id_seq TO analyst;")
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index('idx_forecast_company_scenario')
-    op.drop_constraint('uq_forecast_company_scenario_metric', 'forecasts', type_='unique')
-    op.drop_table('forecasts')
-    op.drop_constraint('uq_scenario_metric', 'scenario_variables', type_='unique')
-    op.drop_table('scenario_variables')
-    op.drop_table('scenarios')
-    pass
+    op.drop_index('idx_forecast_company_scenario', table_name='forecasts', schema='logos')
+    op.drop_constraint('uq_forecast_company_scenario_metric', 'forecasts', type_='unique', schema='logos')
+    op.drop_table('forecasts', schema='logos')
+    op.drop_constraint('uq_scenario_metric', 'scenario_variables', type_='unique', schema='logos')
+    op.drop_table('scenario_variables', schema='logos')
+    op.drop_table('scenarios', schema='logos')

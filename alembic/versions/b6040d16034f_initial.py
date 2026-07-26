@@ -6,23 +6,41 @@ Create Date: 2025-03-15 12:00:00.000000
 """
 from typing import Sequence, Union
 from alembic import op
+from database import DB_NAME
 import sqlalchemy as sa
+import os
 
 revision: str = '0001'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+def get_password(env_name: str) -> str:
+    password = os.getenv(env_name)
+    if password is None: raise ValueError(f"Environment variable {env_name} is not set")
+    return password
+
 def upgrade() -> None:
+    # Get passwords from the environment
+    importer_password = get_password("IMPORTER_PASSWORD")
+    analyst_password = get_password("ANALYST_PASSWORD")
+
+    # Create schema and users
+    op.execute("CREATE SCHEMA IF NOT EXISTS logos")
+    op.execute(f"CREATE USER importer WITH PASSWORD '{importer_password}'")
+    op.execute(f"CREATE USER analyst WITH PASSWORD '{analyst_password}'")
+    op.execute("GRANT USAGE ON SCHEMA logos TO importer, analyst")
+
     # Create tables
     op.create_table('industries',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(), nullable=False),
         sa.Column('code', sa.String(), nullable=False),
         sa.Column('parent_id', sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(['parent_id'], ['industries.id'], ),
+        sa.ForeignKeyConstraint(['parent_id'], ['logos.industries.id'], ),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('code')
+        sa.UniqueConstraint('code'),
+        schema='logos'
     )
     op.create_table('fiscal_periods',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -31,7 +49,8 @@ def upgrade() -> None:
         sa.Column('quarter', sa.Integer(), nullable=True),
         sa.Column('period_type', sa.String(), nullable=False),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('end_date')
+        sa.UniqueConstraint('end_date'),
+        schema='logos'
     )
     op.create_table('metrics',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -39,7 +58,8 @@ def upgrade() -> None:
         sa.Column('name', sa.String(), nullable=False),
         sa.Column('category', sa.String(), nullable=False),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('code')
+        sa.UniqueConstraint('code'),
+        schema='logos'
     )
     op.create_table('ratios',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -47,7 +67,8 @@ def upgrade() -> None:
         sa.Column('name', sa.String(), nullable=False),
         sa.Column('formula', sa.String(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('code')
+        sa.UniqueConstraint('code'),
+        schema='logos'
     )
     op.create_table('companies',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -55,8 +76,12 @@ def upgrade() -> None:
         sa.Column('name', sa.String(), nullable=False),
         sa.Column('inn', sa.String(), nullable=True),
         sa.Column('industry_id', sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(['industry_id'], ['industries.id'], ),
-        sa.PrimaryKeyConstraint('id')
+        sa.ForeignKeyConstraint(['industry_id'], ['logos.industries.id'], ),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('name'),
+        sa.UniqueConstraint('ticker'),
+        sa.UniqueConstraint('inn'),
+        schema='logos'
     )
     op.create_table('raw_financials',
         sa.Column('company_id', sa.Integer(), nullable=False),
@@ -64,24 +89,26 @@ def upgrade() -> None:
         sa.Column('metric_id', sa.Integer(), nullable=False),
         sa.Column('value', sa.Numeric(), nullable=True),
         sa.Column('currency', sa.String(), nullable=True),
-        sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-        sa.ForeignKeyConstraint(['metric_id'], ['metrics.id'], ),
-        sa.ForeignKeyConstraint(['period_id'], ['fiscal_periods.id'], ),
-        sa.PrimaryKeyConstraint('company_id', 'period_id', 'metric_id')
+        sa.ForeignKeyConstraint(['company_id'], ['logos.companies.id'], ),
+        sa.ForeignKeyConstraint(['metric_id'], ['logos.metrics.id'], ),
+        sa.ForeignKeyConstraint(['period_id'], ['logos.fiscal_periods.id'], ),
+        sa.PrimaryKeyConstraint('company_id', 'period_id', 'metric_id'),
+        schema='logos'
     )
-    op.create_index('idx_raw_fin_period_metric', 'raw_financials', ['period_id', 'metric_id'])
-    op.create_index('idx_raw_fin_company_period', 'raw_financials', ['company_id', 'period_id'])
+    op.create_index('idx_raw_fin_period_metric', 'raw_financials', ['period_id', 'metric_id'], schema='logos')
+    op.create_index('idx_raw_fin_company_period', 'raw_financials', ['company_id', 'period_id'], schema='logos')
     op.create_table('ratio_financials',
         sa.Column('company_id', sa.Integer(), nullable=False),
         sa.Column('period_id', sa.Integer(), nullable=False),
         sa.Column('ratio_id', sa.Integer(), nullable=False),
         sa.Column('value', sa.Numeric(), nullable=False),
-        sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-        sa.ForeignKeyConstraint(['period_id'], ['fiscal_periods.id'], ),
-        sa.ForeignKeyConstraint(['ratio_id'], ['ratios.id'], ),
-        sa.PrimaryKeyConstraint('company_id', 'period_id', 'ratio_id')
+        sa.ForeignKeyConstraint(['company_id'], ['logos.companies.id'], ),
+        sa.ForeignKeyConstraint(['period_id'], ['logos.fiscal_periods.id'], ),
+        sa.ForeignKeyConstraint(['ratio_id'], ['logos.ratios.id'], ),
+        sa.PrimaryKeyConstraint('company_id', 'period_id', 'ratio_id'),
+        schema='logos'
     )
-    op.create_index('idx_ratio_ratio_company_period', 'ratio_financials', ['ratio_id', 'company_id', 'period_id'])
+    op.create_index('idx_ratio_ratio_company_period', 'ratio_financials', ['ratio_id', 'company_id', 'period_id'], schema='logos')
 
     # Fill the dictionary tables with initial data
     # Industries
@@ -89,7 +116,8 @@ def upgrade() -> None:
         sa.column('id', sa.Integer),
         sa.column('name', sa.String),
         sa.column('code', sa.String),
-        sa.column('parent_id', sa.Integer)
+        sa.column('parent_id', sa.Integer),
+        schema='logos'
     )
     op.bulk_insert(industries_table, [
         {'id': 1, 'name': 'Нефтегазовый сектор', 'code': 'OIL_GAS', 'parent_id': None},
@@ -123,7 +151,8 @@ def upgrade() -> None:
         sa.column('id', sa.Integer),
         sa.column('code', sa.String),
         sa.column('name', sa.String),
-        sa.column('category', sa.String)
+        sa.column('category', sa.String),
+        schema='logos'
     )
     op.bulk_insert(metrics_table, [
         # Income statement
@@ -167,7 +196,8 @@ def upgrade() -> None:
         sa.column('id', sa.Integer),
         sa.column('code', sa.String),
         sa.column('name', sa.String),
-        sa.column('formula', sa.String)
+        sa.column('formula', sa.String),
+        schema='logos'
     )
     op.bulk_insert(ratios_table, [
         {'id': 1, 'code': 'current_ratio', 'name': 'Current Ratio',
@@ -201,14 +231,28 @@ def upgrade() -> None:
          'formula': 'Summary indicator Beneish M-Score'},
     ])
 
+    # Grant privileges to users
+    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE logos.companies, logos.raw_financials, logos.ratio_financials, logos.fiscal_periods TO importer")
+    op.execute("GRANT SELECT ON TABLE logos.industries, logos.ratios, logos.metrics TO importer")
+    op.execute("GRANT SELECT ON ALL TABLES IN SCHEMA logos TO analyst")
+    op.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA logos TO importer, analyst")
+
+    # Set database search path
+    op.execute(f"ALTER DATABASE {DB_NAME} SET search_path TO logos, public")
+
 def downgrade() -> None:
-    op.drop_index('idx_ratio_ratio_company_period', table_name='ratio_financials')
-    op.drop_table('ratio_financials')
-    op.drop_index('idx_raw_fin_company_period', table_name='raw_financials')
-    op.drop_index('idx_raw_fin_period_metric', table_name='raw_financials')
-    op.drop_table('raw_financials')
-    op.drop_table('companies')
-    op.drop_table('ratios')
-    op.drop_table('metrics')
-    op.drop_table('fiscal_periods')
-    op.drop_table('industries')
+    op.drop_index('idx_ratio_ratio_company_period', table_name='ratio_financials', schema='logos')
+    op.drop_table('ratio_financials', schema='logos')
+    op.drop_index('idx_raw_fin_company_period', table_name='raw_financials', schema='logos')
+    op.drop_index('idx_raw_fin_period_metric', table_name='raw_financials', schema='logos')
+    op.drop_table('raw_financials', schema='logos')
+    op.drop_table('companies', schema='logos')
+    op.drop_table('ratios', schema='logos')
+    op.drop_table('metrics', schema='logos')
+    op.drop_table('fiscal_periods', schema='logos')
+    op.drop_table('industries', schema='logos')
+
+    # Drop users and schema
+    op.execute("DROP SCHEMA IF EXISTS logos CASCADE")
+    op.execute("DROP USER IF EXISTS importer")
+    op.execute("DROP USER IF EXISTS analyst")
