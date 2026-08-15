@@ -197,6 +197,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
 
         data['operating_profit'] = find_indicator(pnl_sheet, [
             'прибыль от операционной деятельности', 'операционная прибыль',
+            'операционная прибыль по небанковским операциям',
             'операционный (убыток)/прибыль',
             'прибыль от продаж', 'операционный доход',
             'operating profit', 'operating income', 'ebit',
@@ -245,6 +246,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
 
         data['interest_expense'] = find_indicator(pnl_sheet, [
             'проценты к уплате', 'процентные расходы', 'расходы по процентам',
+            'процентные и комиссионные доходы',
             'проценты уплаченные', 'финансовые расходы',
             'interest expense', 'finance costs', 'interest paid',
             'процентные платежи'
@@ -274,6 +276,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
 
         data['accounts_receivable'] = find_indicator(balance_sheet, [
             'дебиторская задолженность', 'итого дебиторская задолженность',
+            'краткосрочная дебиторская задолженность',
             'торговая и прочая дебиторская задолженность',
             'торговая дебиторская задолженность',
             'дебиторская задолженность за минусом резерва под ожидаемые кредитные убытки',
@@ -290,6 +293,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
 
         data['total_equity'] = find_indicator(balance_sheet, [
             'всего капитал и резервы', 'итого капитал и резервы', 'итого капитала',
+            'итого акционерный капитал',
             'итого капитал', 'итого собственный капитал'
         ], year_columns)
 
@@ -306,6 +310,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
 
         data['fixed_assets'] = find_indicator(balance_sheet, [
             'основные средства', 'основные средства и нематериальные активы',
+            'основные средства за вычетом накопленного износа и обесценения',
             'основные производственные фонды',
             'property plant and equipment', 'fixed assets', 'ppe',
             'земля здания и оборудование'
@@ -341,9 +346,11 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
         ], year_columns)
 
         data['cff'] = find_indicator(cash_flow, [
+            'денежные средства, использованные в финансовой деятельности',
             'чистый поток денежных средств от финансовой деятельности',
             'чистые денежные средства от финансовой деятельности',
             'чистые денежные средства, использованные в финансовой деятельности',
+            'чистые средства, использованные в финансовой деятельности',
             'чистый поток денежных средств, использованный в финансовой деятельности',
             'результат движения денежных средств от финансовой деятельности',
             'чистый денежный поток от финансовой деятельности',
@@ -352,6 +359,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
         ], year_columns)
 
         data['cfi'] = find_indicator(cash_flow, [
+            'денежные средства, использованные в инвестиционной деятельности',
             'чистый поток денежных средств от инвестиционной деятельности',
             'чистые денежные средства от инвестиционной деятельности',
             'чистые денежные средства, использованные в инвестиционной деятельности',
@@ -363,7 +371,9 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
         ], year_columns)
 
         data['capex'] = find_indicator(cash_flow, [
+            'приобретение основных средств и нематериальных активов, без НДС',
             'приобретение объектов основных средств и нематериальных активов',
+            'приобретение основных средств и нематериальных активов',
             'приобретение основных средств и прочих внеоборотных активов',
             'приобретение основных средств',
             'капитальные затраты'
@@ -373,11 +383,18 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
             data['depreciation'] = find_indicator(cash_flow, [
                 'износ, истощение и амортизация',
                 'амортизация основных средств, нематериальных активов и активов в форме права пользования',
+                'амортизация основных средств и материальных активов',
+                'амортизация внеоборотных активов',
                 'амортизация', 'износ', 'амортизация и износ',
                 'амортизация основных средств и нематериальных активов',
                 'амортизация основных средств',
                 'depreciation', 'amortization', 'depreciation and amortization',
                 'depreciation expense', 'amortization expense'
+            ], year_columns)
+
+        if data.get('interest_expense') is None:
+            data['interest_expense'] = find_indicator(cash_flow, [
+                'уплаченные проценты и оплата расходов на привлечение финансирования',
             ], year_columns)
     else:
         print("Cash flow statement sheet not found")
