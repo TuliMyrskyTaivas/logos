@@ -6,12 +6,13 @@ and save the results to a database.
 
 import sys
 import argparse
+import logging
 import pandas as pd
-import numpy as np
 import re
 from pathlib import Path
 from typing import Any
 
+from ratios import Ratios
 from crud import add_financial_data
 from database import get_session
 
@@ -117,21 +118,6 @@ def find_indicator(df : pd.DataFrame, patterns : list[str], year_columns : dict[
                     return pd.Series(data_dict)
 
     return None
-
-
-def safe_divide(numerator : pd.Series | float | None, denominator : pd.Series | float | None) -> pd.Series | float | None:
-    """Safe division with handling of zero values and missing data. Returns None if division cannot be performed."""
-    if denominator is None or numerator is None:
-        return None
-    try:
-        if isinstance(denominator, pd.Series):
-            result = numerator / denominator.replace(0, np.nan)
-            return result
-        else:
-            return numerator / denominator if denominator != 0 else None
-    except:
-        return None
-
 
 def load_excel_sheets(file_path : str) -> dict[str, pd.DataFrame]:
     """Loads all sheets from an Excel file into a dictionary {sheet_name: DataFrame}"""
@@ -403,7 +389,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
     return data
 
 
-def calculate_ratios(data : dict[str, pd.Series | None]) -> pd.DataFrame:
+def calculate_ratios(logger: logging.Logger, data : dict[str, pd.Series | None]) -> pd.DataFrame:
     """Calculates financial ratios based on the extracted indicators. Returns a DataFrame with ratios."""
     # Collect all years from the available indicators to create a unified index for the ratios DataFrame
     all_years : set[int] = set()
@@ -420,201 +406,28 @@ def calculate_ratios(data : dict[str, pd.Series | None]) -> pd.DataFrame:
 
     # Create an empty DataFrame with years as the index to store the calculated ratios
     results = pd.DataFrame(index=years)
+    ratios = Ratios(logger)
 
-    # 1. ICR - Interest Coverage Ratio
-    if data.get('operating_profit') is not None and data.get('interest_expense') is not None:
-        results['icr'] = safe_divide(data['operating_profit'], data['interest_expense'])
-        print("✓ ICR (Interest Coverage Ratio) calculated (Operating Profit / Interest Expense)")
-    else:
-        print("Impossible to calculate ICR: not enough data")
-        if data.get('operating_profit') is None:
-            print("  - Missing 'Operating Profit'")
-        if data.get('interest_expense') is None:
-            print("  - Missing 'Interest Expense'")
+    results['icr'] = ratios.icr(data)
+    results['tata'] = ratios.tata(data)
+    results['current_ratio'] = ratios.current_ratio(data)
+    results['aqi'] = ratios.aqi(data)
+    results['gmi'] = ratios.gmi(data)
+    results['sgai'] = ratios.sgai(data)
+    results['depi'] = ratios.depi(data)
+    results['dsri'] = ratios.dsri(data)
+    results['sgi'] = ratios.sgi(data)
+    results['rofa'] = ratios.rofa(data)
+    results['fat'] = ratios.fat(data)
 
-    # 2. Leverage (Общий долг / Собственный капитал)
-    if data.get('long_term_liabilities') is not None and \
-       data.get('current_liabilities') is not None and \
-       data.get('total_equity') is not None:
-        total_debt = data['long_term_liabilities'].add(
-            data['current_liabilities'], fill_value=0
-        )
-        leverage_series = safe_divide(total_debt, data['total_equity'])
-        results['leverage'] = leverage_series
-        print("✓ Leverage calculated (Total Debt / Equity)")
-        if isinstance(leverage_series, pd.Series):
-            results['lvgi'] = leverage_series.div(leverage_series.shift(1))
-            print("✓ LVGI calculated (Leverage Index)")
-        else:
-            print("Impossible to calculate LVGI: Leverage is absent")
-    else:
-        print("Impossible to calculate Leverage: not enough data")
-        if data.get('long_term_liabilities') is None:
-            print("  - Long-term liabilities are missing")
-        if data.get('current_liabilities') is None:
-            print("  - Current liabilities are missing")
-        if data.get('total_equity') is None:
-            print("  - Total equity is missing")
+    leverage = ratios.leverage(data)
+    if leverage is not None:
+        results['leverage'] = leverage
+        results['lvgi'] = ratios.lvgi(leverage)
 
-    # 3. TATA - Total Accruals to Total Assets
-    if data.get('net_profit') is not None and data.get('cfo') is not None and \
-       data.get('current_assets') is not None and data.get('non_current_assets') is not None:
-        total_assets = data['current_assets'].add(data['non_current_assets'], fill_value=0)
-        total_accruals = data['net_profit'].sub(data['cfo'], fill_value=0)
-        results['tata'] = safe_divide(total_accruals, total_assets)
-        print("✓ TATA calculated (Total Accruals to Total Assets)")
-    else:
-        print("⚠ Impossible to calculate TATA: not enough data")
-        if data.get('net_profit') is None:
-            print("  - 'Net Income' is missing")
-        if data.get('cfo') is None:
-            print("  - 'Operating Cash Flow' is missing")
-        if data.get('current_assets') is None:
-            print("  - 'Current Assets' is missing")
-        if data.get('non_current_assets') is None:
-            print("  - 'Non-current Assets' is missing")
 
-    # 4. Current Ratio
-    if data.get('current_assets') is not None and data.get('current_liabilities') is not None:
-        results['current_ratio'] = safe_divide(data['current_assets'], data['current_liabilities'])
-        print("✓ Current Ratio calculated")
-    else:
-        print("⚠ Impossible to calculate Current Ratio: not enough data")
-        if data.get('current_assets') is None:
-            print("  - 'Current Assets' is missing")
-        if data.get('current_liabilities') is None:
-            print("  - 'Current Liabilities' is missing")
-
-    # 5. AQI (Asset Quality Index)
-    if data.get('current_assets') is not None and data.get('non_current_assets') is not None and data.get('fixed_assets') is not None:
-        total_assets = data['current_assets'].add(data['non_current_assets'], fill_value=0)
-        current_plus_ppe = data['current_assets'].add(data['fixed_assets'], fill_value=0)
-        asset_quality = 1 - safe_divide(current_plus_ppe, total_assets)
-        if isinstance(asset_quality, pd.Series):
-            results['aqi'] = safe_divide(asset_quality.shift(1), asset_quality)
-            print("✓ AQI (Asset Quality Index) calculated")
-        else:
-            print("⚠ Impossible to calculate AQI: failed to compute asset quality ratio")
-    else:
-        print("⚠ Impossible to calculate AQI: not enough data")
-        if data.get('current_assets') is None:
-            print("  - 'Current Assets' is missing")
-        if data.get('non_current_assets') is None:
-            print("  - 'Non-current Assets' is missing")
-        if data.get('fixed_assets') is None:
-            print("  - 'Fixed Assets' is missing")
-
-    # 5. GMI - Gross Margin Index
-    if data.get('gross_profit') is not None and data.get('revenue') is not None:
-        gross_margin = safe_divide(data['gross_profit'], data['revenue'])
-        if isinstance(gross_margin, pd.Series):
-            results['gmi'] = safe_divide(gross_margin.shift(1), gross_margin)
-            print("✓ GMI (Gross Margin Index) calculated")
-        else:
-            print("⚠ Impossible to calculate GMI: failed to compute gross margin ratio")
-    else:
-        print("⚠ Impossible to calculate GMI: not enough data")
-        if data.get('gross_profit') is None:
-            print("  - 'Gross Profit' is missing")
-        if data.get('revenue') is None:
-            print("  - 'Revenue' is missing")
-
-    # 6. SGAI - Sales, General and Administrative Expenses Index
-    if data.get('sga') is not None and data.get('revenue') is not None:
-        sga_ratio = safe_divide(data['sga'], data['revenue'])
-        if isinstance(sga_ratio, pd.Series):
-            results['sgai'] = sga_ratio.div(sga_ratio.shift(1))
-            print("✓ SGAI (Sales, General and Administrative Expenses Index) calculated")
-        else:
-            print("⚠ Impossible to calculate SGAI: failed to compute SG&A to revenue ratio")
-    else:
-        print("⚠ Impossible to calculate SGAI: not enough data")
-        if data.get('sga') is None:
-            print("  - 'SG&A' is missing")
-        if data.get('revenue') is None:
-            print("  - 'Revenue' is missing")
-
-    # 7. DEPI - Depreciation Index
-    if data.get('depreciation') is not None and data.get('fixed_assets') is not None:
-        depreciation_ratio = safe_divide(data['depreciation'].shift(1), data['depreciation'])
-        ppe_ratio = safe_divide(data['fixed_assets'], data['fixed_assets'].shift(1))
-        if isinstance(depreciation_ratio, pd.Series) and isinstance(ppe_ratio, pd.Series):
-            results['depi'] = safe_divide(depreciation_ratio, ppe_ratio)
-            print("✓ DEPI (Depreciation Index) calculated")
-        else:
-            print("⚠ Impossible to calculate DEPI: failed to compute depreciation ratio or PPE ratio")
-    else:
-        print("⚠ Impossible to calculate DEPI: not enough data")
-        if data.get('depreciation') is None:
-            print("  - Depreciation is missing")
-        if data.get('fixed_assets') is None:
-            print("  - 'Fixed Assets' is missing")
-
-    # 7. DSRI - Days Sales in Receivables Index
-    if data.get('accounts_receivable') is not None and data.get('revenue') is not None:
-        receivables_ratio = safe_divide(data['accounts_receivable'], data['revenue'])
-        if isinstance(receivables_ratio, pd.Series):
-            results['dsri'] = receivables_ratio.div(receivables_ratio.shift(1))
-            print("✓ DSRI (Days Sales in Receivables Index) calculated")
-        else:
-            print("⚠ Impossible to calculate DSRI: failed to compute receivables to revenue ratio")
-    else:
-        print("⚠ Impossible to calculate DSRI: not enough data")
-        if data.get('accounts_receivable') is None:
-            print("  - 'Accounts Receivable' is missing")
-        if data.get('revenue') is None:
-            print("  - 'Revenue' is missing")
-
-    # 7. SGI - Sales Growth Index
-    if data.get('revenue') is not None:
-        results['sgi'] = safe_divide(data['revenue'], data['revenue'].shift(1))
-        print("✓ SGI (Sales Growth Index) calculated")
-    else:
-        print("⚠ Impossible to calculate SGI: not enough data")
-        print("  - 'Revenue' is missing")
-
-    # 8. M-Score (Beneish M-score)
-    required_mscore = ['dsri', 'gmi', 'aqi', 'sgi', 'depi', 'sgai', 'lvgi', 'tata']
-    missing_mscore = [col for col in required_mscore if col not in results.columns]
-    if not missing_mscore:
-        results['m_score'] = (
-            -4.84
-            + 0.92 * results['dsri']
-            + 0.528 * results['gmi']
-            + 0.404 * results['aqi']
-            + 0.892 * results['sgi']
-            + 0.115 * results['depi']
-            - 0.172 * results['sgai']
-            + 4.679 * results['tata']
-            - 0.327 * results['lvgi']
-        )
-        print("✓ M-Score (Beneish M-score) calculated")
-    else:
-        print("⚠ Impossible to calculate M-Score: not enough data for the following components:")
-        for col in missing_mscore:
-            print(f"  - {col}")
-
-    # 9. ROFA - Return on Fixed Assets
-    if data.get('net_profit') is not None and data.get('fixed_assets') is not None:
-        results['rofa'] = safe_divide(data['net_profit'], data['fixed_assets'])
-        print("✓ ROFA calculated (Return on Fixed Assets)")
-    else:
-        print("⚠ Impossible to calculate ROFA: not enough data")
-        if data.get('net_profit') is None:
-            print("  - 'Net Income' is missing")
-        if data.get('fixed_assets') is None:
-            print("  - 'Fixed Assets' is missing")
-
-    # 10. FAT - Fixed Assets Turnover
-    if data.get('revenue') is not None and data.get('fixed_assets') is not None:
-        results['fat'] = safe_divide(data['revenue'], data['fixed_assets'])
-        print("✓ FAT calculated (Fixed Assets Turnover)")
-    else:
-        print("⚠ Impossible to calculate FAT: not enough data")
-        if data.get('revenue') is None:
-            print("  - 'Revenue' is missing")
-        if data.get('fixed_assets') is None:
-            print("  - 'Fixed Assets' is missing")
+    results["m_score"] = ratios.m_score(results['dsri'], results['gmi'], results['aqi'], results['sgi'],
+                                        results['depi'], results['sgai'], results['lvgi'], results['tata'])
 
     return results
 
@@ -834,13 +647,26 @@ Usage examples:
 
     args = parser.parse_args()
 
+    # Setup logging
+    logger = logging.getLogger('import_ifrs')
+    handler = logging.StreamHandler()
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+    else:
+        logger.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(message)s')
+        handler.setFormatter(formatter)
+
+    logger.addHandler(handler)
+
     if not Path(args.file_path).exists():
         print(f"Error: File '{args.file_path}' not found, please check the file path.")
         sys.exit(1)
 
-    print("="*80)
-    print(f"Import IFRS Statements from Excel {args.file_path}")
-    print("="*80)
+    logger.info(f"Import IFRS Statements from Excel {args.file_path}")
 
     # Load all sheets from the Excel file
     sheets = load_excel_sheets(args.file_path)
@@ -849,7 +675,7 @@ Usage examples:
     extracted_data = extract_financial_data(sheets)
 
     # Calculate financial ratios based on the extracted data
-    ratios = calculate_ratios(extracted_data)
+    ratios = calculate_ratios(logger, extracted_data)
 
     # Print the extracted data and calculated ratios with detailed information
     print_results(extracted_data, ratios)
