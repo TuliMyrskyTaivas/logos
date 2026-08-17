@@ -16,6 +16,7 @@ logos/
 ├── models.py                  # SQLAlchemy 2.0 ORM models (schema `logos`)
 ├── database.py                # Database connection and session factory
 ├── crud.py                    # CRUD helpers for importing financial data
+├── ratios.py                  # Financial ratio calculations (incl. Beneish M-Score)
 ├── import_ifrs_from_excel.py  # CLI: import IFRS statements from Excel
 ├── performance_modeling.py    # CLI: scenario forecasting and breakeven analysis
 ├── alembic/                   # Database migrations (Alembic)

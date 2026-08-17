@@ -92,8 +92,8 @@ def find_indicator(df : pd.DataFrame, patterns : list[str], year_columns : dict[
 
     first_col = df.iloc[:, 0]  # first column with indicator names
 
-    for idx, value in first_col.items():
-        if idx == 0:  # skip header row
+    for pos, value in enumerate(first_col):
+        if pos == 0:  # skip header row
             continue
 
         normalized = normalize_indicator_name(value)
@@ -104,7 +104,7 @@ def find_indicator(df : pd.DataFrame, patterns : list[str], year_columns : dict[
                 data_dict : dict[int, float] = {}
                 for col_idx, year in year_columns.items():
                     if col_idx < len(df.columns):
-                        cell_value = df.iloc[idx, col_idx]
+                        cell_value = df.iloc[pos, col_idx]
                         # Convert to numeric
                         try:
                             numeric_value = pd.to_numeric(cell_value, errors='coerce')
@@ -119,49 +119,48 @@ def find_indicator(df : pd.DataFrame, patterns : list[str], year_columns : dict[
 
     return None
 
-def load_excel_sheets(file_path : str) -> dict[str, pd.DataFrame]:
+def load_excel_sheets(logger: logging.Logger, file_path : str) -> dict[str, pd.DataFrame]:
     """Loads all sheets from an Excel file into a dictionary {sheet_name: DataFrame}"""
     try:
         excel_file = pd.ExcelFile(file_path)
-        print(f"Found sheets: {excel_file.sheet_names}")
+        logger.info(f"found sheets: {excel_file.sheet_names}")
 
         sheets : dict[str, pd.DataFrame] = {}
         for sheet_name in excel_file.sheet_names:
             # Read the sheet without headers, as we will process them manually
-            df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+            df = excel_file.parse(sheet_name=sheet_name, header=None)
             sheets[str(sheet_name)] = df
 
         return sheets
     except Exception as e:
-        print(f"Error reading file: {e}")
+        logger.fatal(f"error reading file: {e}")
         sys.exit(1)
 
 
-def find_sheet_by_keywords(sheets : dict[str, pd.DataFrame], keywords : list[str]) -> tuple[pd.DataFrame | None, str | None]:
+def find_sheet_by_keywords(logger: logging.Logger, sheets : dict[str, pd.DataFrame], keywords : list[str]) -> tuple[pd.DataFrame | None, str | None]:
     """Finds a sheet by keywords in its name. Returns the DataFrame and the sheet name, or (None, None) if not found."""
     for sheet_name, df in sheets.items():
         sheet_name_normalized = normalize_indicator_name(sheet_name)
         for keyword in keywords:
             if normalize_indicator_name(keyword) in sheet_name_normalized:
-                print(f"  Found sheet: '{sheet_name}' (by keyword '{keyword}')")
+                logger.debug(f"found sheet: '{sheet_name}' (by keyword '{keyword}')")
                 return df, sheet_name
     return None, None
 
 
-def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Series | None]:
+def extract_financial_data(logger: logging.Logger, sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Series | None]:
     """Extracts all necessary indicators from the financial statements sheets"""
     data : dict[str, pd.Series | None] = {}
 
     # 1. Income Statement
-    pnl_sheet, _ = find_sheet_by_keywords(sheets, [
+    pnl_sheet, _ = find_sheet_by_keywords(logger, sheets, [
         'прибыли и убытки', 'прибыль и убыток',
         'доходы и расходы', 'income statement', 'profit and loss'
     ])
 
     if pnl_sheet is not None:
-        print("✓ Found income statement sheet")
         year_columns, _ = extract_year_columns(pnl_sheet)
-        print(f"  Found years: {sorted(year_columns.values())}")
+        logger.info(f"found income statement sheet, years: {sorted(year_columns.values())}")
 
         data['revenue'] = find_indicator(pnl_sheet, [
             'выручка', 'выручка от реализации', 'выручка от продаж',
@@ -238,20 +237,18 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
             'процентные платежи'
         ], year_columns)
     else:
-        print("Income Statement sheet not found")
-        print("  Available sheets:", list(sheets.keys()))
+        logger.warning(f"Income Statement sheet not found, available sheets: {list(sheets.keys())}")
 
     # 2. Balance Statement
-    balance_sheet, _ = find_sheet_by_keywords(sheets, [
+    balance_sheet, _ = find_sheet_by_keywords(logger, sheets, [
         'финансовое положение', 'активы и обязательства', 'баланс',
         'бухгалтерский баланс', 'balance sheet',
         'statement of financial position'
     ])
 
     if balance_sheet is not None:
-        print("✓ Found balance sheet")
         year_columns, _ = extract_year_columns(balance_sheet)
-        print(f"  Found years: {sorted(year_columns.values())}")
+        logger.info(f"found balance sheet, years: {sorted(year_columns.values())}")
 
         data['non_current_assets'] = find_indicator(balance_sheet, [
             'итого внеоборотных активов', 'всего внеоборотных активов',
@@ -302,20 +299,18 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
             'земля здания и оборудование'
         ], year_columns)
     else:
-        print("Balance Sheet sheet not found")
-        print("  Available sheets:", list(sheets.keys()))
+        logger.warning(f"Balance Sheet sheet not found, available sheets: {list(sheets.keys())}")
 
     # 3. Cash Flow Statement
-    cash_flow, _ = find_sheet_by_keywords(sheets, [
+    cash_flow, _ = find_sheet_by_keywords(logger, sheets, [
         'оддс', 'движение денежных средств', 'денежные потоки',
         'отчет о движении денежных средств',
         'cash flow', 'statement of cash flows'
     ])
 
     if cash_flow is not None:
-        print("✓ Cash flow statement sheet found")
         year_columns, _ = extract_year_columns(cash_flow)
-        print(f"  Available years: {sorted(year_columns.values())}")
+        logger.info(f"cash flow statement sheet found, years: {sorted(year_columns.values())}")
 
         data['cfo'] = find_indicator(cash_flow, [
             'чистый поток денежных средств от операционной деятельности',
@@ -383,8 +378,7 @@ def extract_financial_data(sheets : dict[str, pd.DataFrame]) -> dict[str, pd.Ser
                 'уплаченные проценты и оплата расходов на привлечение финансирования',
             ], year_columns)
     else:
-        print("Cash flow statement sheet not found")
-        print("  Available sheets:", list(sheets.keys()))
+        logger.warning(f"Cash flow statement sheet not found, available sheets: {list(sheets.keys())}")
 
     return data
 
@@ -398,10 +392,10 @@ def calculate_ratios(logger: logging.Logger, data : dict[str, pd.Series | None])
             all_years.update(value.index)
 
     years = sorted(all_years)
-    print(f"\nCombined analysis periods: {years}")
+    logger.info(f"calculate ratios for periods: {years}")
 
     if not years:
-        print("No periods found for analysis!")
+        logger.warning("no periods found for analysis")
         return pd.DataFrame()
 
     # Create an empty DataFrame with years as the index to store the calculated ratios
@@ -425,9 +419,16 @@ def calculate_ratios(logger: logging.Logger, data : dict[str, pd.Series | None])
         results['leverage'] = leverage
         results['lvgi'] = ratios.lvgi(leverage)
 
-
-    results["m_score"] = ratios.m_score(results['dsri'], results['gmi'], results['aqi'], results['sgi'],
-                                        results['depi'], results['sgai'], results['lvgi'], results['tata'])
+    # M-Score requires all eight Beneish components to be present
+    m_score_components = ['dsri', 'gmi', 'aqi', 'sgi', 'depi', 'sgai', 'lvgi', 'tata']
+    missing_components = [name for name in m_score_components if name not in results.columns]
+    if missing_components:
+        logger.warning(f"skipping M-Score calculation: missing components {missing_components}")
+    else:
+        results["m_score"] = ratios.m_score(
+            results['dsri'], results['gmi'], results['aqi'], results['sgi'],
+            results['depi'], results['sgai'], results['lvgi'], results['tata']
+        )
 
     return results
 
@@ -468,7 +469,6 @@ def print_results(extracted_data : dict[str, pd.Series | None], ratios : pd.Data
     print("IMPORTED IFRS DATA")
     print("="*80)
 
-    # Выводим детальные данные
     print_detailed_data(extracted_data)
 
     print("\n" + "="*80)
@@ -476,7 +476,7 @@ def print_results(extracted_data : dict[str, pd.Series | None], ratios : pd.Data
     print("="*80)
 
     if not ratios.empty:
-        # Форматируем вывод
+        # Output formatting
         pd.set_option('display.float_format', '{:.2f}'.format)
         pd.set_option('display.max_columns', None)
         pd.set_option('display.width', None)
@@ -484,7 +484,7 @@ def print_results(extracted_data : dict[str, pd.Series | None], ratios : pd.Data
 
         print(ratios.to_string())
 
-        # Дополнительные комментарии
+        # Explanation
         print("\n" + "-"*80)
         print("INTERPRETATION OF RESULTS (latest available period):")
         print("-"*80)
@@ -630,6 +630,13 @@ def print_results(extracted_data : dict[str, pd.Series | None], ratios : pd.Data
         print("   Please check the presence of all necessary indicators in the financial statements")
 
 
+class CustomFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        msg = super().format(record)
+        if record.levelno >= logging.WARNING:
+            return f"WARN: {msg}"
+        return msg
+
 def main():
     parser = argparse.ArgumentParser(
         description='Import and analyze IFRS statements from Excel file.',
@@ -657,22 +664,21 @@ Usage examples:
         handler.setFormatter(formatter)
     else:
         logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(message)s')
+        formatter = CustomFormatter('%(message)s')
         handler.setFormatter(formatter)
 
     logger.addHandler(handler)
+    logger.info(f"import IFRS Statements from Excel {args.file_path}")
 
     if not Path(args.file_path).exists():
-        print(f"Error: File '{args.file_path}' not found, please check the file path.")
+        logger.error(f"file '{args.file_path}' not found, please check the file path.")
         sys.exit(1)
 
-    logger.info(f"Import IFRS Statements from Excel {args.file_path}")
-
     # Load all sheets from the Excel file
-    sheets = load_excel_sheets(args.file_path)
+    sheets = load_excel_sheets(logger, args.file_path)
 
     # Extract financial data from the sheets
-    extracted_data = extract_financial_data(sheets)
+    extracted_data = extract_financial_data(logger, sheets)
 
     # Calculate financial ratios based on the extracted data
     ratios = calculate_ratios(logger, extracted_data)
@@ -693,12 +699,12 @@ Usage examples:
             try:
                 add_financial_data(session, args.company, args.ticker, args.industry, metrics_data, ratios)
                 session.commit()
-                print("Data saved to the database")
+                logger.info("data saved to the database")
             except Exception:
                 session.rollback()
                 raise
     else:
-        print("Skipping database save: --company and --industry are required")
+        logger.info("skipping database save: --company and --industry are required")
 
 
 if __name__ == "__main__":
