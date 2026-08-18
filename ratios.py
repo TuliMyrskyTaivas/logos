@@ -262,3 +262,19 @@ class Ratios:
             + 4.679 * tata
             - 0.327 * lvgi
         )
+
+    def m_score_rus(self, dsri: Ratio, gmi: Ratio, aqi: Ratio, sgi: Ratio,
+                    sgai: Ratio, lvgi: Ratio) -> Ratio:
+        if (dsri is None or gmi is None or aqi is None or sgi is None or
+                    sgai is None or lvgi is None):
+                    self.logger.warning("not enough data for M-Score RUS: some components are missing")
+                    return None
+        return (
+            0.613
+            + 0.098 * dsri
+            - 0.038 * gmi
+            - 1.745 * aqi
+            + 0.249 * sgi
+            + 0.454 * sgai
+            + 0.582 * lvgi
+        )

@@ -429,6 +429,10 @@ def calculate_ratios(logger: logging.Logger, data : dict[str, pd.Series | None])
             results['dsri'], results['gmi'], results['aqi'], results['sgi'],
             results['depi'], results['sgai'], results['lvgi'], results['tata']
         )
+        results["m_score_rus"] = ratios.m_score_rus(
+            results['dsri'], results['gmi'], results['aqi'],
+            results['sgi'],  results['sgai'], results['lvgi']
+        )
 
     return results
 
