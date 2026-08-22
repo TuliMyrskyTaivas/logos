@@ -24,7 +24,12 @@ logos/
 ├── docker-compose.yml         # PostgreSQL 18 service
 ├── requirements.txt           # Python dependencies
 ├── logos.erm.json             # Entity-relationship model (ERD)
-└── README.md
+├── README.md
+└── gûldvegt/                  # Go HTTP service for precious metals quotes
+    ├── api/openapi.yaml       # OpenAPI 3.2 specification
+    ├── cmd/api/main.go        # echo server entry point
+    ├── internal/api/          # service implementation
+    └── internal/generated/    # oapi-codegen generated code
 ```
 
 - **Stack:** Python 3.10+, PostgreSQL 18 (Docker), SQLAlchemy, Alembic,
@@ -34,6 +39,19 @@ logos/
 - **Migrations:** managed with Alembic (`alembic/versions/`).
 - **CLI entry points:** `import_ifrs_from_excel.py` and
   `performance_modeling.py`.
+
+### Gûldvegt (Go service)
+
+The `gûldvegt/` folder is a separate Go module that serves precious metals
+bullion and investment coin quotes over HTTP:
+
+- Echo v5 server (`cmd/api/main.go`) exposing `GET /quotes/bullions` and
+  `GET /quotes/coins`, as defined in `api/openapi.yaml` (OpenAPI 3.2).
+- Generated code in `internal/generated/openapi/` via
+  [oapi-codegen](https://github.com/oapi-codegen/oapi-codegen); regenerate
+  with `codegen.yaml` (models) and `codegen-server.yaml` (echo server).
+  Do not edit generated files by hand.
+- Service implementation in `internal/api/`.
 
 ## General Rules
 

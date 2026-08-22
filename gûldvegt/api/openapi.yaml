@@ -1,0 +1,149 @@
+openapi: 3.2.0
+info:
+  title: Gûldvegt Quotes API
+  version: 1.0.0
+  summary: Quotes for precious metals bullion and investment coins
+  description: |
+    Provides quotes for precious metals bullion and investment coins.
+servers:
+  - url: http://localhost:8080
+x-oapi-codegen:
+  package: openapi
+  generate:
+    echo-server: true
+    models: true
+  output:
+    echo-server: internal/generated/openapi/server.gen.go
+    models: internal/generated/openapi/types.gen.go
+paths:
+  /quotes/bullions:
+    get:
+      operationId: getBullionQuotes
+      summary: Get bullion quotes
+      description: Returns a list of precious metals bullion quotes.
+      responses:
+        "200":
+          description: Successful response with a list of bullion quotes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BullionQuote"
+              example:
+                - date: "2026-08-22"
+                  vendor: "Sberbank"
+                  metal: gold
+                  weight: 100
+                  buyPrice: 650000
+                  sellPrice: 660000
+                  currency: RUB
+  /quotes/coins:
+    get:
+      operationId: getCoinQuotes
+      summary: Get investment coin quotes
+      description: Returns a list of investment coin quotes.
+      responses:
+        "200":
+          description: Successful response with a list of coin quotes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoinQuote"
+              example:
+                - date: "2026-08-22"
+                  dealer: "Sberbank"
+                  weight: 7.78
+                  buyPrice: 50000
+                  sellPrice: 52000
+                  currency: RUB
+components:
+  schemas:
+    BullionQuote:
+      type: object
+      description: A quote for a precious metals bullion bar.
+      required:
+        - date
+        - vendor
+        - metal
+        - weight
+        - buyPrice
+        - sellPrice
+        - currency
+      properties:
+        date:
+          type: string
+          format: date
+          description: Quote date.
+          example: "2026-08-22"
+        vendor:
+          type: string
+          description: Bullion vendor.
+          example: "Sberbank"
+        metal:
+          type: string
+          description: Precious metal.
+          enum:
+            - gold
+            - silver
+          example: gold
+        weight:
+          type: number
+          description: Bullion weight in grams.
+          example: 100
+        buyPrice:
+          type: number
+          description: Buy price.
+          example: 650000
+        sellPrice:
+          type: number
+          description: Sell price.
+          example: 660000
+        currency:
+          type: string
+          description: Price currency (ISO 4217).
+          enum:
+            - RUB
+            - USD
+          example: RUB
+    CoinQuote:
+      type: object
+      description: A quote for an investment coin.
+      required:
+        - date
+        - dealer
+        - weight
+        - buyPrice
+        - sellPrice
+        - currency
+      properties:
+        date:
+          type: string
+          format: date
+          description: Quote date.
+          example: "2026-08-22"
+        dealer:
+          type: string
+          description: Coin dealer.
+          example: "Sberbank"
+        weight:
+          type: number
+          description: Coin weight in grams.
+          example: 7.78
+        buyPrice:
+          type: number
+          description: Buy price.
+          example: 50000
+        sellPrice:
+          type: number
+          description: Sell price.
+          example: 52000
+        currency:
+          type: string
+          description: Price currency (ISO 4217).
+          enum:
+            - RUB
+            - USD
+          example: RUB

@@ -23,7 +23,12 @@ logos/
 ├── docker-compose.yml         # PostgreSQL 18 service
 ├── requirements.txt           # Python dependencies
 ├── logos.erm.json             # Entity-relationship model (ERD)
-└── README.md
+├── README.md
+└── gûldvegt/                  # Go HTTP service for precious metals quotes
+    ├── api/openapi.yaml       # OpenAPI 3.2 specification
+    ├── cmd/api/main.go        # echo server entry point
+    ├── internal/api/          # service implementation
+    └── internal/generated/    # oapi-codegen generated code
 ```
 
 ### Database Schema
@@ -44,6 +49,26 @@ All tables reside in the `logos` schema and are defined in `models.py`:
 | `forecasts` | Forecasted metric values: company × scenario × year × metric |
 
 See `logos.erm.json` for the full entity-relationship diagram (compatible with ERD tools like [ermaster](https://github.com/nickgak/ER-Master)).
+
+## Gûldvegt
+
+The `gûldvegt/` folder contains a small Go service exposing precious metals
+bullion and investment coin quotes over HTTP:
+
+- **Echo v5 server** in `cmd/api/main.go` serves the endpoints from
+  `api/openapi.yaml` (OpenAPI 3.2): `GET /quotes/bullions` and
+  `GET /quotes/coins`.
+- **Generated code** in `internal/generated/openapi/` is produced with
+  [oapi-codegen](https://github.com/oapi-codegen/oapi-codegen) from the spec
+  (`codegen.yaml` for models, `codegen-server.yaml` for the echo server).
+- **Service implementation** in `internal/api/` returns sample quote data.
+
+Run it with:
+
+```bash
+cd gûldvegt
+go run ./cmd/api
+```
 
 ## Getting Started
 

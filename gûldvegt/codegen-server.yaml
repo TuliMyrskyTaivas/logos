@@ -1,0 +1,4 @@
+package: openapi
+generate:
+  echo5-server: true
+output: internal/generated/openapi/server.gen.go
