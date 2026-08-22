@@ -3,20 +3,26 @@ package api
 
 import (
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/labstack/echo/v5"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/TuliMyrskyTaivas/guldvegt/internal/client"
 	"github.com/TuliMyrskyTaivas/guldvegt/internal/generated/openapi"
 )
 
 // Service implements the generated openapi.ServerInterface.
-type Service struct{}
+type Service struct {
+	bullions client.ClientInterface
+}
 
 // NewService returns a new Service.
 func NewService() *Service {
-	return &Service{}
+	return &Service{
+		bullions: client.NewSberBullionsClient(),
+	}
 }
 
 // Ensure Service satisfies the generated server interface at compile time.
@@ -24,26 +30,31 @@ var _ openapi.ServerInterface = (*Service)(nil)
 
 // GetBullionQuotes returns a list of precious metals bullion quotes.
 func (s *Service) GetBullionQuotes(ctx *echo.Context) error {
-	quotes := []openapi.BullionQuote{
-		{
-			Date:      openapi_types.Date{Time: time.Date(2026, time.August, 22, 0, 0, 0, 0, time.UTC)},
+	info, err := s.bullions.GetQuotesInfo(ctx.Request().Context())
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	weights := make([]float32, 0, len(info.Quotes))
+	for weight := range info.Quotes {
+		weights = append(weights, weight)
+	}
+	sort.Slice(weights, func(i, j int) bool { return weights[i] < weights[j] })
+
+	quotes := make([]openapi.BullionQuote, 0, len(weights))
+	for _, weight := range weights {
+		q := info.Quotes[weight]
+		quotes = append(quotes, openapi.BullionQuote{
+			Date:      openapi_types.Date{Time: info.ValidAt},
 			Vendor:    "Sberbank",
 			Metal:     openapi.Gold,
-			Weight:    100,
-			BuyPrice:  650000,
-			SellPrice: 660000,
+			Weight:    weight,
+			BuyPrice:  q.BuyPrice,
+			SellPrice: q.SellPrice,
 			Currency:  openapi.BullionQuoteCurrencyRUB,
-		},
-		{
-			Date:      openapi_types.Date{Time: time.Date(2026, time.August, 22, 0, 0, 0, 0, time.UTC)},
-			Vendor:    "Sberbank",
-			Metal:     openapi.Silver,
-			Weight:    1000,
-			BuyPrice:  80000,
-			SellPrice: 83000,
-			Currency:  openapi.BullionQuoteCurrencyRUB,
-		},
+		})
 	}
+
 	return ctx.JSON(http.StatusOK, quotes)
 }
 
