@@ -54,11 +54,64 @@ type sberRangeItem struct {
 	RateBuy   float32 `json:"rateBuy"`
 }
 
+// monthDay is a fixed (non-shifting) Russian non-working day.
+type monthDay struct {
+	month time.Month
+	day   int
+}
+
+// russianNonWorkingDays are the non-working days fixed by Article 112 of the
+// Russian Labour Code. Days moved by annual government decrees are not taken
+// into account.
+var russianNonWorkingDays = []monthDay{
+	{time.January, 1},
+	{time.January, 2},
+	{time.January, 3},
+	{time.January, 4},
+	{time.January, 5},
+	{time.January, 6},
+	{time.January, 7},
+	{time.January, 8},
+	{time.February, 23},
+	{time.March, 8},
+	{time.May, 1},
+	{time.May, 9},
+	{time.June, 12},
+	{time.November, 4},
+}
+
+// isWorkingDay reports whether d is a working day in Russia: a weekday that
+// is not a fixed public holiday.
+func isWorkingDay(d time.Time) bool {
+	if d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
+		return false
+	}
+	month, day := d.Month(), d.Day()
+	for _, h := range russianNonWorkingDays {
+		if h.month == month && h.day == day {
+			return false
+		}
+	}
+	return true
+}
+
+// lastWorkingDay returns the latest day at or before from that is a working
+// day, stepping backwards over weekends and public holidays.
+func lastWorkingDay(from time.Time) time.Time {
+	d := from
+	for !isWorkingDay(d) {
+		d = d.AddDate(0, 0, -1)
+	}
+	return d
+}
+
 // GetQuotesInfo fetches gold bullion quotes for the current day.
 func (c *SberBullionsClient) GetQuotesInfo(ctx context.Context) (*QuotesInfo, error) {
-	// Request quotes from the beginning of the current day (local time).
+	// Sberbank does not update quotes on weekends and public holidays, so
+	// request quotes from the beginning of the last working day (local time).
 	now := time.Now()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	startOfDay = lastWorkingDay(startOfDay)
 	dateMs := startOfDay.UnixMilli()
 
 	u, err := url.Parse(sberBullionsURL)
