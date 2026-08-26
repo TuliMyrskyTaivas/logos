@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -15,10 +16,11 @@ import (
 // SberBullionsClient fetches gold bullion quotes from Sberbank.
 type SberBullionsClient struct {
 	httpClient *http.Client
+	log        *slog.Logger
 }
 
 // NewSberBullionsClient returns a client for Sberbank bullion quotes.
-func NewSberBullionsClient() *SberBullionsClient {
+func NewSberBullionsClient(log *slog.Logger) *SberBullionsClient {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	// certificate verification is disabled for sberbank.ru.
 	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
@@ -28,6 +30,7 @@ func NewSberBullionsClient() *SberBullionsClient {
 			Transport: transport,
 			Timeout:   30 * time.Second,
 		},
+		log: log,
 	}
 }
 

@@ -2,6 +2,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"sort"
 	"time"
@@ -16,12 +17,14 @@ import (
 // Service implements the generated openapi.ServerInterface.
 type Service struct {
 	bullions client.ClientInterface
+	log      *slog.Logger
 }
 
 // NewService returns a new Service.
-func NewService() *Service {
+func NewService(log *slog.Logger) *Service {
 	return &Service{
-		bullions: client.NewSberBullionsClient(),
+		bullions: client.NewSberBullionsClient(log),
+		log:      log,
 	}
 }
 
