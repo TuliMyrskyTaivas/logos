@@ -11,15 +11,25 @@ import (
 
 	"github.com/TuliMyrskyTaivas/guldvegt/internal/api"
 	"github.com/TuliMyrskyTaivas/guldvegt/internal/generated/openapi"
+	"github.com/TuliMyrskyTaivas/guldvegt/pkg/auth"
 	"github.com/TuliMyrskyTaivas/guldvegt/pkg/logger"
 )
 
 func main() {
 	log := logger.SetupLogger()
 
+	key := os.Getenv("BEARER_KEY")
+	if key == "" {
+		log.Error("BEARER_KEY environment variable is not set; refusing to start")
+		os.Exit(1)
+	}
+
+	log.Debug("JWT", slog.String("value", key))
+
 	server := echo.New()
 	server.Logger = log
 	server.Use(middleware.RequestLogger())
+	server.Use(auth.BearerAuth([]byte(key)))
 
 	service := api.NewService(log)
 	openapi.RegisterHandlers(server, service)

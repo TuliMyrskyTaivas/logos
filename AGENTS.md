@@ -63,6 +63,8 @@ bullion and investment coin quotes over HTTP:
 - Do not commit secrets, credentials, or `.env` files.
 - After edits, run the relevant checks (e.g. `python -m compileall` or the
   existing test/CLI commands) to validate changes.
+- When working inside a subdirectory, always check for a local `AGENTS.md` first.
+  If present, follow its instructions for that module before applying root-level rules.
 
 ## Strict API Rules
 
