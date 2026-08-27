@@ -143,7 +143,11 @@ func (c *SberBullionsClient) GetQuotesInfo(ctx context.Context) (*QuotesInfo, er
 	if err != nil {
 		return nil, fmt.Errorf("request sberbank quotes: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.log.Error("close response body", slog.Any("error", err))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("sberbank returned status %d", resp.StatusCode)

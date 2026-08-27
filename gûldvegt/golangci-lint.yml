@@ -1,0 +1,109 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  skip-dirs:
+    - db
+    - configs
+    - deployments
+    - web
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\_test\\.go$"
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  disable-all: true
+  enable:
+    # Error detection
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+
+    # Complexity
+    - gocritic
+    - gocyclo
+    - nestif
+
+    # Security
+    - gosec
+
+    # Best practices
+    - bodyclose
+    - sqlclosecheck
+
+    # Performance
+    - prealloc
+
+linters-settings:
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/TuliMyrskyTaivas/guldvegt)
+    skip-generated: true
+
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+    disabled-checks:
+      - hugeParam
+
+  gocyclo:
+    min-complexity: 15
+
+  goimports:
+    local-prefixes: github.com/TuliMyrskyTaivas/guldvegt
+
+  govet:
+    check-shadowing: true
+    settings:
+      printf:
+        funcs:
+          - Log
+          - Logf
+
+  gosec:
+    excludes:
+      - G104 # Audit errors not checked
+      - G107 # URL string as input to HTTP request
+      - G402 # TLS MinVersion
+
+  staticcheck:
+    checks:
+      - all
+      - -ST1000 # Missing package comment
+      - -ST1003 # Poorly chosen identifier names
+      - -ST1016 # Methods on the same type should have the same receiver name
+
+issues:
+  exclude-rules:
+    # Exclude some linters from test files
+    - path: '(.+)_test\.go'
+      linters:
+        - gocyclo
+        - gocritic
+        - gosec
+        - errcheck
+
+    # Allow common test helper patterns
+    - text: "Error return value of .* is not checked"
+      linters:
+        - errcheck
+      path: _test\.go$
+
+    # Exclude common false positives
+    - linters:
+        - gosec
+      text: "potential file inclusion via variable"
+
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -34,7 +34,7 @@ func main() {
 	service := api.NewService(log)
 	openapi.RegisterHandlers(server, service)
 
-	if err := server.Start(":8080"); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := server.Start(":9080"); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error("server error", slog.Any("error", err))
 		os.Exit(1)
 	}
