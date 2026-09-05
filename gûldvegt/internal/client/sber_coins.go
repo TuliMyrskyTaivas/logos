@@ -39,6 +39,9 @@ var _ CoinsClientInterface = (*SberCoinsClient)(nil)
 
 const sberCoinsURL = "https://www.sberbank.ru/proxy/services/coin-catalog/coins"
 
+// sberCoinsBuyoutURL returns the buyback quotes for investment coins.
+const sberCoinsBuyoutURL = "https://www.sberbank.ru/proxy/services/coin-catalog/coins/buyout?query=&page=0"
+
 // sberCoinsRequest is the POST payload for the Sberbank coin catalog.
 type sberCoinsRequest struct {
 	Query        string   `json:"query"`
@@ -66,10 +69,22 @@ type sberCoinsResponse struct {
 
 // sberCoin is a single entry in the Sberbank coin catalog.
 type sberCoin struct {
+	ID    string  `json:"id"`
 	Name  string  `json:"name"`
 	Date  string  `json:"date"`
 	Mass1 float32 `json:"mass1"`
 	Price float32 `json:"price"`
+}
+
+// sberCoinsBuyoutResponse mirrors the Sberbank coin buyout response.
+type sberCoinsBuyoutResponse struct {
+	Entities []sberCoinBuyout `json:"entities"`
+}
+
+// sberCoinBuyout is a single entry in the Sberbank coin buyout catalog.
+type sberCoinBuyout struct {
+	ID       string  `json:"id"`
+	PriceBuy float32 `json:"priceBuy"`
 }
 
 // russianMonths maps Russian month abbreviations used by Sberbank to English
@@ -168,18 +183,69 @@ func (c *SberCoinsClient) GetCoinsInfo(ctx context.Context) (*CoinsInfo, error) 
 		return nil, fmt.Errorf("decode sberbank response: %w", err)
 	}
 
+	buyoutPrices, err := c.fetchBuyoutPrices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	coins := make([]CoinInfo, 0, len(coinsResp.Entities))
 	for _, entity := range coinsResp.Entities {
 		if strings.Contains(entity.Name, "Талисман") {
 			continue
 		}
 		coins = append(coins, CoinInfo{
-			Name:  entity.Name,
-			Date:  entity.Date,
-			Mass:  entity.Mass1,
-			Price: entity.Price,
+			Name:     entity.Name,
+			Date:     entity.Date,
+			Mass:     entity.Mass1,
+			Price:    entity.Price,
+			BuyPrice: buyoutPrices[entity.ID],
 		})
 	}
 
 	return &CoinsInfo{Coins: coins}, nil
+}
+
+// fetchBuyoutPrices fetches Sberbank coin buyback quotes and returns them
+// keyed by coin ID.
+func (c *SberCoinsClient) fetchBuyoutPrices(ctx context.Context) (map[string]float32, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sberCoinsBuyoutURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Accept-Language", "ru,en;q=0.9,en-GB;q=0.8,en-US;q=0.7,fr-FR;q=0.6,fr;q=0.5")
+	req.Header.Set("Dnt", "1")
+	req.Header.Set("Priority", "u=1, i")
+	req.Header.Set("Referer", "https://www.sberbank.ru/ru/person/metall")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request sberbank coin buyout: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.log.Error("close response body", slog.Any("error", err))
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("sberbank returned status %d", resp.StatusCode)
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", err)
+	}
+
+	var buyoutResp sberCoinsBuyoutResponse
+	if err := json.Unmarshal(respBody, &buyoutResp); err != nil {
+		return nil, fmt.Errorf("decode sberbank buyout response: %w", err)
+	}
+
+	prices := make(map[string]float32, len(buyoutResp.Entities))
+	for _, entity := range buyoutResp.Entities {
+		prices[entity.ID] = entity.PriceBuy
+	}
+
+	return prices, nil
 }

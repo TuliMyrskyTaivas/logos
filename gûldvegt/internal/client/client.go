@@ -25,10 +25,11 @@ type ClientInterface interface {
 
 // CoinInfo is a single investment coin quote.
 type CoinInfo struct {
-	Name  string
-	Date  string
-	Mass  float32
-	Price float32
+	Name     string
+	Date     string
+	Mass     float32
+	Price    float32
+	BuyPrice float32
 }
 
 // CoinsInfo holds the list of investment coin quotes.

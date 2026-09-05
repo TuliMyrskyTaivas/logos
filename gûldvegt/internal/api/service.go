@@ -80,7 +80,7 @@ func (s *Service) GetCoinQuotes(ctx *echo.Context) error {
 			Date:      openapi_types.Date{Time: date},
 			Dealer:    "Sberbank",
 			Weight:    c.Mass,
-			BuyPrice:  0,
+			BuyPrice:  c.BuyPrice,
 			SellPrice: c.Price,
 			Currency:  openapi.CoinQuoteCurrencyRUB,
 		})
