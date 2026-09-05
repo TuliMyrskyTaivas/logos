@@ -53,7 +53,8 @@ paths:
                 items:
                   $ref: "#/components/schemas/CoinQuote"
               example:
-                - date: "2026-08-22"
+                - name: "Георгий Победоносец"
+                  date: "2026-08-22"
                   dealer: "Sberbank"
                   weight: 7.78
                   buyPrice: 50000
@@ -112,6 +113,7 @@ components:
       type: object
       description: A quote for an investment coin.
       required:
+        - name
         - date
         - dealer
         - weight
@@ -119,6 +121,10 @@ components:
         - sellPrice
         - currency
       properties:
+        name:
+          type: string
+          description: Coin name.
+          example: "Георгий Победоносец"
         date:
           type: string
           format: date

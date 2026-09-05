@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
-	"time"
 
 	"github.com/labstack/echo/v5"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -17,6 +16,7 @@ import (
 // Service implements the generated openapi.ServerInterface.
 type Service struct {
 	bullions client.ClientInterface
+	coins    client.CoinsClientInterface
 	log      *slog.Logger
 }
 
@@ -24,6 +24,7 @@ type Service struct {
 func NewService(log *slog.Logger) *Service {
 	return &Service{
 		bullions: client.NewSberBullionsClient(log),
+		coins:    client.NewSberCoinsClient(log),
 		log:      log,
 	}
 }
@@ -63,23 +64,27 @@ func (s *Service) GetBullionQuotes(ctx *echo.Context) error {
 
 // GetCoinQuotes returns a list of investment coin quotes.
 func (s *Service) GetCoinQuotes(ctx *echo.Context) error {
-	coins := []openapi.CoinQuote{
-		{
-			Date:      openapi_types.Date{Time: time.Date(2026, time.August, 22, 0, 0, 0, 0, time.UTC)},
-			Dealer:    "Sberbank",
-			Weight:    7.78,
-			BuyPrice:  50000,
-			SellPrice: 52000,
-			Currency:  openapi.CoinQuoteCurrencyRUB,
-		},
-		{
-			Date:      openapi_types.Date{Time: time.Date(2026, time.August, 22, 0, 0, 0, 0, time.UTC)},
-			Dealer:    "Sberbank",
-			Weight:    31.1,
-			BuyPrice:  190000,
-			SellPrice: 195000,
-			Currency:  openapi.CoinQuoteCurrencyRUB,
-		},
+	info, err := s.coins.GetCoinsInfo(ctx.Request().Context())
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+
+	coins := make([]openapi.CoinQuote, 0, len(info.Coins))
+	for _, c := range info.Coins {
+		date, err := client.ParseCoinDate(c.Date)
+		if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+		coins = append(coins, openapi.CoinQuote{
+			Name:      c.Name,
+			Date:      openapi_types.Date{Time: date},
+			Dealer:    "Sberbank",
+			Weight:    c.Mass,
+			BuyPrice:  0,
+			SellPrice: c.Price,
+			Currency:  openapi.CoinQuoteCurrencyRUB,
+		})
+	}
+
 	return ctx.JSON(http.StatusOK, coins)
 }

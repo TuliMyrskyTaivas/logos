@@ -105,6 +105,9 @@ type CoinQuote struct {
 	// Dealer Coin dealer.
 	Dealer string `json:"dealer"`
 
+	// Name Coin name.
+	Name string `json:"name"`
+
 	// SellPrice Sell price.
 	SellPrice float32 `json:"sellPrice"`
 
