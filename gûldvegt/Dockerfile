@@ -35,7 +35,7 @@ RUN go test -coverprofile=coverage.out -v ./...
 # Deploy the service into a separate lean image
 FROM gcr.io/distroless/base-debian13 AS guldvegt-cmd
 WORKDIR /
-COPY --from=build-stage /guldvegt /guldvegt
+COPY --from=go-build-stage /guldvegt /guldvegt
 #COPY --from=go-lint-stage /go/bin/dlv /usr/local/bin/dlv
 EXPOSE 9080
 USER nonroot:nonroot

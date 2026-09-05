@@ -24,8 +24,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Debug("JWT", slog.String("value", key))
-
 	server := echo.New()
 	server.Logger = log
 	server.Use(middleware.RequestLogger())
