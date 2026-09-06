@@ -26,6 +26,7 @@ type ClientInterface interface {
 
 // CoinInfo is a single investment coin quote.
 type CoinInfo struct {
+	Dealer   string
 	Name     string
 	Date     string
 	Mass     float32

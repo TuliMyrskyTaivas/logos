@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -38,6 +39,9 @@ func NewSberCoinsClient(log *slog.Logger) *SberCoinsClient {
 var _ CoinsClientInterface = (*SberCoinsClient)(nil)
 
 const sberCoinsURL = "https://www.sberbank.ru/proxy/services/coin-catalog/coins"
+
+// sberCoinsDealer is the dealer name assigned to all Sberbank coin quotes.
+const sberCoinsDealer = "Sberbank"
 
 // sberCoinsBuyoutURL returns the buyback quotes for investment coins.
 const sberCoinsBuyoutURL = "https://www.sberbank.ru/proxy/services/coin-catalog/coins/buyout?query=&page=0"
@@ -194,6 +198,7 @@ func (c *SberCoinsClient) GetCoinsInfo(ctx context.Context) (*CoinsInfo, error) 
 			continue
 		}
 		coins = append(coins, CoinInfo{
+			Dealer:   sberCoinsDealer,
 			Name:     entity.Name,
 			Date:     entity.Date,
 			Mass:     entity.Mass1,
@@ -202,6 +207,16 @@ func (c *SberCoinsClient) GetCoinsInfo(ctx context.Context) (*CoinsInfo, error) 
 			Spread:   spreadPercent(buyoutPrices[entity.ID], entity.Price),
 		})
 	}
+
+	sort.SliceStable(coins, func(i, j int) bool {
+		if coins[i].Dealer != coins[j].Dealer {
+			return coins[i].Dealer < coins[j].Dealer
+		}
+		if coins[i].Name != coins[j].Name {
+			return coins[i].Name < coins[j].Name
+		}
+		return coins[i].Mass < coins[j].Mass
+	})
 
 	return &CoinsInfo{Coins: coins}, nil
 }
