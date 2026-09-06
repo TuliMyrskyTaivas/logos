@@ -37,6 +37,7 @@ paths:
                   weight: 100
                   buyPrice: 650000
                   sellPrice: 660000
+                  spread: 1.52
                   currency: RUB
   /quotes/coins:
     get:
@@ -59,6 +60,7 @@ paths:
                   weight: 7.78
                   buyPrice: 50000
                   sellPrice: 52000
+                  spread: 3.85
                   currency: RUB
 components:
   schemas:
@@ -72,6 +74,7 @@ components:
         - weight
         - buyPrice
         - sellPrice
+        - spread
         - currency
       properties:
         date:
@@ -102,6 +105,10 @@ components:
           type: number
           description: Sell price.
           example: 660000
+        spread:
+          type: number
+          description: Difference between sell and buy prices in percent.
+          example: 1.52
         currency:
           type: string
           description: Price currency (ISO 4217).
@@ -119,6 +126,7 @@ components:
         - weight
         - buyPrice
         - sellPrice
+        - spread
         - currency
       properties:
         name:
@@ -146,6 +154,10 @@ components:
           type: number
           description: Sell price.
           example: 52000
+        spread:
+          type: number
+          description: Difference between sell and buy prices in percent.
+          example: 3.85
         currency:
           type: string
           description: Price currency (ISO 4217).

@@ -194,6 +194,7 @@ func (c *SberBullionsClient) GetQuotesInfo(ctx context.Context) (*QuotesInfo, er
 			quotes[item.Mass] = Quote{
 				BuyPrice:  item.RateBuy,
 				SellPrice: item.RateSell,
+				Spread:    spreadPercent(item.RateBuy, item.RateSell),
 			}
 		}
 	}

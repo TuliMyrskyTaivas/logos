@@ -78,6 +78,9 @@ type BullionQuote struct {
 	// SellPrice Sell price.
 	SellPrice float32 `json:"sellPrice"`
 
+	// Spread Difference between sell and buy prices in percent.
+	Spread float32 `json:"spread"`
+
 	// Vendor Bullion vendor.
 	Vendor string `json:"vendor"`
 
@@ -110,6 +113,9 @@ type CoinQuote struct {
 
 	// SellPrice Sell price.
 	SellPrice float32 `json:"sellPrice"`
+
+	// Spread Difference between sell and buy prices in percent.
+	Spread float32 `json:"spread"`
 
 	// Weight Coin weight in grams.
 	Weight float32 `json:"weight"`

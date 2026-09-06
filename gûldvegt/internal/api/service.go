@@ -55,6 +55,7 @@ func (s *Service) GetBullionQuotes(ctx *echo.Context) error {
 			Weight:    weight,
 			BuyPrice:  q.BuyPrice,
 			SellPrice: q.SellPrice,
+			Spread:    q.Spread,
 			Currency:  openapi.BullionQuoteCurrencyRUB,
 		})
 	}
@@ -82,6 +83,7 @@ func (s *Service) GetCoinQuotes(ctx *echo.Context) error {
 			Weight:    c.Mass,
 			BuyPrice:  c.BuyPrice,
 			SellPrice: c.Price,
+			Spread:    c.Spread,
 			Currency:  openapi.CoinQuoteCurrencyRUB,
 		})
 	}

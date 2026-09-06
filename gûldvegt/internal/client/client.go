@@ -9,6 +9,7 @@ import (
 type Quote struct {
 	BuyPrice  float32
 	SellPrice float32
+	Spread    float32
 }
 
 // Quotes for the different weights
@@ -30,6 +31,7 @@ type CoinInfo struct {
 	Mass     float32
 	Price    float32
 	BuyPrice float32
+	Spread   float32
 }
 
 // CoinsInfo holds the list of investment coin quotes.
@@ -40,4 +42,13 @@ type CoinsInfo struct {
 // CoinsClientInterface fetches investment coin quotes.
 type CoinsClientInterface interface {
 	GetCoinsInfo(ctx context.Context) (*CoinsInfo, error)
+}
+
+// spreadPercent returns the difference between the sell and buy prices as a
+// percentage of the sell price. It returns 0 when either sell price or by price is zero.
+func spreadPercent(buyPrice, sellPrice float32) float32 {
+	if sellPrice == 0 || buyPrice == 0 {
+		return 0
+	}
+	return (sellPrice - buyPrice) / sellPrice * 100
 }

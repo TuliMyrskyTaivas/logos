@@ -199,6 +199,7 @@ func (c *SberCoinsClient) GetCoinsInfo(ctx context.Context) (*CoinsInfo, error) 
 			Mass:     entity.Mass1,
 			Price:    entity.Price,
 			BuyPrice: buyoutPrices[entity.ID],
+			Spread:   spreadPercent(buyoutPrices[entity.ID], entity.Price),
 		})
 	}
 
