@@ -28,7 +28,7 @@ type ClientInterface interface {
 type CoinInfo struct {
 	Dealer   string
 	Name     string
-	Date     string
+	Date     time.Time
 	Mass     float32
 	Price    float32
 	BuyPrice float32

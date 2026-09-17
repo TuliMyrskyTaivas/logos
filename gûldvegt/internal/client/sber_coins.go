@@ -197,10 +197,14 @@ func (c *SberCoinsClient) GetCoinsInfo(ctx context.Context) (*CoinsInfo, error) 
 		if strings.Contains(entity.Name, "Талисман") {
 			continue
 		}
+		date, err := ParseCoinDate(entity.Date)
+		if err != nil {
+			return nil, fmt.Errorf("parse coin date %q: %w", entity.Date, err)
+		}
 		coins = append(coins, CoinInfo{
 			Dealer:   sberCoinsDealer,
 			Name:     entity.Name,
-			Date:     entity.Date,
+			Date:     date,
 			Mass:     entity.Mass1,
 			Price:    entity.Price,
 			BuyPrice: buyoutPrices[entity.ID],

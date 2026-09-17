@@ -16,7 +16,7 @@ import (
 // Service implements the generated openapi.ServerInterface.
 type Service struct {
 	bullions client.ClientInterface
-	coins    client.CoinsClientInterface
+	coins    []client.CoinsClientInterface
 	log      *slog.Logger
 }
 
@@ -24,8 +24,11 @@ type Service struct {
 func NewService(log *slog.Logger) *Service {
 	return &Service{
 		bullions: client.NewSberBullionsClient(log),
-		coins:    client.NewSberCoinsClient(log),
-		log:      log,
+		coins: []client.CoinsClientInterface{
+			client.NewSberCoinsClient(log),
+			client.NewZolotoyZapasCoinsClient(log),
+		},
+		log: log,
 	}
 }
 
@@ -65,21 +68,31 @@ func (s *Service) GetBullionQuotes(ctx *echo.Context) error {
 
 // GetCoinQuotes returns a list of investment coin quotes.
 func (s *Service) GetCoinQuotes(ctx *echo.Context) error {
-	info, err := s.coins.GetCoinsInfo(ctx.Request().Context())
-	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-	}
-
-	coins := make([]openapi.CoinQuote, 0, len(info.Coins))
-	for _, c := range info.Coins {
-		date, err := client.ParseCoinDate(c.Date)
+	var all []client.CoinInfo
+	for _, coinsClient := range s.coins {
+		info, err := coinsClient.GetCoinsInfo(ctx.Request().Context())
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
+		all = append(all, info.Coins...)
+	}
+
+	sort.SliceStable(all, func(i, j int) bool {
+		if all[i].Dealer != all[j].Dealer {
+			return all[i].Dealer < all[j].Dealer
+		}
+		if all[i].Name != all[j].Name {
+			return all[i].Name < all[j].Name
+		}
+		return all[i].Mass < all[j].Mass
+	})
+
+	coins := make([]openapi.CoinQuote, 0, len(all))
+	for _, c := range all {
 		coins = append(coins, openapi.CoinQuote{
 			Name:      c.Name,
-			Date:      openapi_types.Date{Time: date},
-			Dealer:    "Sberbank",
+			Date:      openapi_types.Date{Time: c.Date},
+			Dealer:    c.Dealer,
 			Weight:    c.Mass,
 			BuyPrice:  c.BuyPrice,
 			SellPrice: c.Price,
