@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -83,6 +84,7 @@ func NewServer(metricsURL string) (*http.Server, error) {
 	return &http.Server{
 		Addr:    addr,
 		Handler: mux,
+		ReadHeaderTimeout: 3 * time.Second, // Protection against Slowloris attack
 	}, nil
 }
 
