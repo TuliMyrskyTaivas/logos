@@ -11,6 +11,7 @@ import (
 
 	"github.com/TuliMyrskyTaivas/guldvegt/internal/client"
 	"github.com/TuliMyrskyTaivas/guldvegt/internal/generated/openapi"
+	"github.com/TuliMyrskyTaivas/guldvegt/internal/metrics"
 )
 
 // Service implements the generated openapi.ServerInterface.
@@ -39,6 +40,7 @@ var _ openapi.ServerInterface = (*Service)(nil)
 func (s *Service) GetBullionQuotes(ctx *echo.Context) error {
 	info, err := s.bullions.GetQuotesInfo(ctx.Request().Context())
 	if err != nil {
+		metrics.IncBullionsFailed()
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
@@ -63,6 +65,7 @@ func (s *Service) GetBullionQuotes(ctx *echo.Context) error {
 		})
 	}
 
+	metrics.IncBullionsSuccess()
 	return ctx.JSON(http.StatusOK, quotes)
 }
 
@@ -89,6 +92,7 @@ func (s *Service) GetCoinQuotes(ctx *echo.Context) error {
 	for range s.coins {
 		res := <-results
 		if res.err != nil {
+			metrics.IncCoinsFailed()
 			return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": res.err.Error()})
 		}
 		all = append(all, res.coins...)
@@ -118,5 +122,6 @@ func (s *Service) GetCoinQuotes(ctx *echo.Context) error {
 		})
 	}
 
+	metrics.IncCoinsSuccess()
 	return ctx.JSON(http.StatusOK, coins)
 }

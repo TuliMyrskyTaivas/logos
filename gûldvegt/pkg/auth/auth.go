@@ -7,6 +7,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v5"
+
+	"github.com/TuliMyrskyTaivas/guldvegt/internal/metrics"
 )
 
 const bearerScheme = "Bearer "
@@ -30,6 +32,7 @@ func BearerAuth(key []byte) echo.MiddlewareFunc {
 
 			if !ok || token == "" {
 				log.Info("authorization failure", slog.String("reason", "missing bearer token"))
+				metrics.IncAuthMissingToken()
 				return echo.NewHTTPError(http.StatusUnauthorized, "authorization failure")
 			}
 
@@ -42,6 +45,7 @@ func BearerAuth(key []byte) echo.MiddlewareFunc {
 			)
 			if err != nil {
 				log.Info("authorization failure", slog.String("reason", "invalid token"), slog.String("error", err.Error()))
+				metrics.IncAuthInvalidToken()
 				return echo.NewHTTPError(http.StatusUnauthorized, "authorization failure")
 			}
 
