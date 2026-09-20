@@ -68,13 +68,30 @@ func (s *Service) GetBullionQuotes(ctx *echo.Context) error {
 
 // GetCoinQuotes returns a list of investment coin quotes.
 func (s *Service) GetCoinQuotes(ctx *echo.Context) error {
-	var all []client.CoinInfo
+	type result struct {
+		coins []client.CoinInfo
+		err   error
+	}
+
+	results := make(chan result, len(s.coins))
 	for _, coinsClient := range s.coins {
-		info, err := coinsClient.GetCoinsInfo(ctx.Request().Context())
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		go func(c client.CoinsClientInterface) {
+			info, err := c.GetCoinsInfo(ctx.Request().Context())
+			if err != nil {
+				results <- result{err: err}
+				return
+			}
+			results <- result{coins: info.Coins}
+		}(coinsClient)
+	}
+
+	var all []client.CoinInfo
+	for range s.coins {
+		res := <-results
+		if res.err != nil {
+			return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": res.err.Error()})
 		}
-		all = append(all, info.Coins...)
+		all = append(all, res.coins...)
 	}
 
 	sort.SliceStable(all, func(i, j int) bool {
