@@ -28,6 +28,7 @@ func NewService(log *slog.Logger) *Service {
 		coins: []client.CoinsClientInterface{
 			client.NewSberCoinsClient(log),
 			client.NewZolotoyZapasCoinsClient(log),
+			client.NewZolotoMDCoinsClient(log),
 		},
 		log: log,
 	}
