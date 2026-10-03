@@ -1,0 +1,192 @@
+openapi: 3.2.0
+info:
+  title: Mímir Financial Data API
+  version: 1.0.0
+  summary: Gateway to financial analytics and modeling results
+  description: |
+    Mímir is a gateway to the Logos PostgreSQL database. It exposes
+    financial analytics (IFRS statements and ratios) and financial
+    modeling results over an HTTP REST API.
+
+    Authentication is performed with mutual TLS (mTLS): clients present an
+    X.509 certificate signed by the service's trusted CA.
+servers:
+  - url: https://localhost:8443
+security:
+  - clientCertificate: []
+tags:
+  - name: financials
+    description: IFRS financial statements and ratios
+paths:
+  /financials:
+    post:
+      tags:
+        - financials
+      operationId: uploadFinancialData
+      summary: Upload IFRS financial data for a company
+      description: |
+        Creates or updates a company and stores its absolute financial
+        metrics and computed ratios for one or more fiscal years.
+
+        The request body mirrors the arguments of the Logos
+        `add_financial_data` function: a company, its industry, a mapping of
+        metric code -> (year -> value), and a mapping of
+        year -> (ratio name -> value).
+
+        Values set to `null` are skipped. The industry must already exist in
+        the database.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinancialDataUpload"
+            examples:
+              sberbank:
+                summary: Single company, two fiscal years
+                value:
+                  companyName: "ПАО Сбербанк"
+                  ticker: "SBER"
+                  industryName: "Banks"
+                  metrics:
+                    Revenue:
+                      "2023": 3500000000000
+                      "2024": 3900000000000
+                    "Net profit":
+                      "2023": 1490000000000
+                      "2024": null
+                  ratios:
+                    "2023":
+                      "Current ratio": 1.5
+                      "ICR": 3.2
+                    "2024":
+                      "Current ratio": 1.6
+                      "ICR": 3.4
+      responses:
+        "201":
+          description: Financial data accepted and stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialDataUploadResult"
+        "400":
+          description: Malformed request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Referenced industry does not exist in the database.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    clientCertificate:
+      type: mutualTLS
+      description: |
+        Mutual TLS authentication. The client presents an X.509 certificate
+        that must be signed by the CA configured on the server.
+  schemas:
+    FinancialDataUpload:
+      type: object
+      description: |
+        IFRS financial data for a single company. Mirrors the arguments of
+        the Logos `add_financial_data` function.
+      required:
+        - companyName
+        - ticker
+        - industryName
+        - metrics
+        - ratios
+      properties:
+        companyName:
+          type: string
+          description: Full name of the company.
+          example: "ПАО Сбербанк"
+        ticker:
+          type: string
+          description: Exchange ticker symbol.
+          example: "SBER"
+        industryName:
+          type: string
+          description: Name of the industry. Must already exist in the database.
+          example: "Banks"
+        metrics:
+          $ref: "#/components/schemas/MetricSeries"
+        ratios:
+          $ref: "#/components/schemas/RatioSeries"
+
+    MetricSeries:
+      type: object
+      description: |
+        Absolute financial metrics (P&L, balance sheet, cash flow) keyed by
+        metric code. Each value maps a fiscal year to the metric value.
+        Null values are skipped.
+      additionalProperties:
+        type: object
+        description: Metric values keyed by fiscal year.
+        additionalProperties:
+          type: [number, "null"]
+          description: Metric value for the fiscal year.
+      example:
+        Revenue:
+          "2023": 3500000000000
+          "2024": 3900000000000
+        "Net profit":
+          "2023": 1490000000000
+
+    RatioSeries:
+      type: object
+      description: |
+        Computed ratios keyed by fiscal year. Each value maps a ratio name
+        to its value. Null values are skipped.
+      additionalProperties:
+        type: object
+        description: Ratio values keyed by ratio name.
+        additionalProperties:
+          type: [number, "null"]
+          description: Ratio value for the fiscal year.
+      example:
+        "2023":
+          "Current ratio": 1.5
+          "ICR": 3.2
+        "2024":
+          "Current ratio": 1.6
+
+    FinancialDataUploadResult:
+      type: object
+      description: Summary of a successful financial data upload.
+      required:
+        - companyId
+        - companyName
+        - ticker
+        - metricCount
+        - ratioCount
+      properties:
+        companyId:
+          type: integer
+          description: Database identifier of the company.
+        companyName:
+          type: string
+          description: Full name of the company.
+        ticker:
+          type: string
+          description: Exchange ticker symbol.
+        metricCount:
+          type: integer
+          description: Number of metric values stored.
+        ratioCount:
+          type: integer
+          description: Number of ratio values stored.
+
+    Error:
+      type: object
+      description: Standard error response.
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Human-readable error message.

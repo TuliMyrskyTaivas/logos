@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """
 Import IFRS financial data from an Excel file, extract key financial indicators, calculate financial ratios
-and save the results to a database.
+and upload the results to the mímir service.
 """
 
 import sys
+import os
+import json
+import ssl
 import argparse
 import logging
+import urllib.error
+import urllib.request
 import pandas as pd
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ratios import Ratios
-from crud import add_financial_data
-from database import get_session
 
 def is_year(value : Any) -> bool:
     """
@@ -641,6 +644,116 @@ class CustomFormatter(logging.Formatter):
             return f"WARN: {msg}"
         return msg
 
+
+MIMIR_URL_DEFAULT = "https://localhost:8443"
+
+
+def _series_to_year_values(series: pd.Series) -> dict[str, float]:
+    """Convert a year-indexed Series into {year: value}, skipping NaN values."""
+    return {
+        str(cast(int, year)): float(value)
+        for year, value in series.items()
+        if not pd.isna(value)
+    }
+
+
+def _build_mimir_payload(
+    company: str,
+    ticker: str,
+    industry: str,
+    metrics_data: dict[str, pd.Series],
+    ratios: pd.DataFrame,
+) -> dict[str, Any]:
+    """Build the JSON body expected by the mímir `POST /financials` endpoint."""
+    metrics = {
+        metric_name: _series_to_year_values(series)
+        for metric_name, series in metrics_data.items()
+        if not series.empty
+    }
+    metrics = {name: values for name, values in metrics.items() if values}
+
+    ratios_payload: dict[str, dict[str, float]] = {}
+    if not ratios.empty:
+        for year, row in ratios.iterrows():
+            year_int = cast(int, year)
+            year_values = {
+                str(ratio_name): cast(float, row[ratio_name])
+                for ratio_name in ratios.columns
+                if not pd.isna(row[ratio_name])
+            }
+            if year_values:
+                ratios_payload[str(year_int)] = year_values
+
+    return {
+        "companyName": company,
+        "ticker": ticker,
+        "industryName": industry,
+        "metrics": metrics,
+        "ratios": ratios_payload,
+    }
+
+
+def _mimir_ssl_context() -> ssl.SSLContext | None:
+    """Build an SSL context for mTLS, using client certificate/key/CA if set.
+
+    Set `MIMIR_VERIFY_SSL=0` to disable server certificate verification
+    (e.g. for testing against a self-signed server certificate).
+    """
+    ca_file = os.getenv("MIMIR_CA_FILE")
+    cert_file = os.getenv("MIMIR_CLIENT_CERT_FILE")
+    key_file = os.getenv("MIMIR_CLIENT_KEY_FILE")
+    verify_ssl = os.getenv("MIMIR_VERIFY_SSL", "1").strip().lower() not in ("0", "false", "no", "off")
+
+    if not verify_ssl:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    elif not (ca_file or cert_file):
+        return None
+    else:
+        context = ssl.create_default_context(cafile=ca_file)
+
+    if cert_file:
+        context.load_cert_chain(certfile=cert_file, keyfile=key_file)
+    return context
+
+
+def send_to_mimir(
+    mimir_url: str,
+    company: str,
+    ticker: str,
+    industry: str,
+    metrics_data: dict[str, pd.Series],
+    ratios: pd.DataFrame,
+    logger: logging.Logger,
+) -> dict[str, Any]:
+    """Upload financial data to the mímir service and return the response."""
+    payload = _build_mimir_payload(company, ticker, industry, metrics_data, ratios)
+    url = f"{mimir_url.rstrip('/')}/financials"
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    logger.debug(
+        "sending %d metrics and %d ratio rows to %s",
+        len(payload["metrics"]),
+        len(payload["ratios"]),
+        url,
+    )
+
+    context = _mimir_ssl_context()
+    try:
+        with urllib.request.urlopen(request, timeout=60, context=context) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"mímir returned HTTP {exc.code}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"cannot reach mímir at {url}: {exc.reason}") from exc
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Import and analyze IFRS statements from Excel file.',
@@ -655,6 +768,7 @@ Usage examples:
     parser.add_argument('--ticker', '-t', type=str, help='Company ticker symbol', default=None)
     parser.add_argument('--industry', '-i', type=str, help='Industry name', default=None)
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output with detailed information about the analysis process')
+    parser.add_argument('--mimir-url', type=str, default=os.getenv('MIMIR_URL', MIMIR_URL_DEFAULT), help='Mímir service base URL')
 
     args = parser.parse_args()
 
@@ -690,25 +804,34 @@ Usage examples:
     # Print the extracted data and calculated ratios with detailed information
     print_results(extracted_data, ratios)
 
-    # Save the data to the database
+    # Upload the data through the mímir service
     if args.company and args.industry:
         metrics_data = {
             metric_name: series
             for metric_name, series in extracted_data.items()
             if series is not None
         }
-
-        ImporterSession = get_session('importer', 'IMPORTER_PASSWORD')
-        with ImporterSession() as session:
-            try:
-                add_financial_data(session, args.company, args.ticker, args.industry, metrics_data, ratios)
-                session.commit()
-                logger.info("data saved to the database")
-            except Exception:
-                session.rollback()
-                raise
+        try:
+            result = send_to_mimir(
+                args.mimir_url,
+                args.company,
+                args.ticker or "",
+                args.industry,
+                metrics_data,
+                ratios,
+                logger,
+            )
+            logger.info(
+                "data sent to mímir: companyId=%s, metricCount=%s, ratioCount=%s",
+                result.get("companyId"),
+                result.get("metricCount"),
+                result.get("ratioCount"),
+            )
+        except Exception as exc:
+            logger.error("failed to send data to mímir: %s", exc)
+            sys.exit(1)
     else:
-        logger.info("skipping database save: --company and --industry are required")
+        logger.info("skipping upload: --company and --industry are required")
 
 
 if __name__ == "__main__":

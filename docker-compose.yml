@@ -14,6 +14,31 @@ services:
       timeout: 5s
       retries: 5
 
+  mimir:
+    build:
+      context: .
+      dockerfile: "mímir/Dockerfile"
+    restart: unless-stopped
+    environment:
+      MIMIR_HOST: "0.0.0.0"
+      MIMIR_PORT: "8443"
+      MIMIR_DB_HOST: db
+      MIMIR_DB_PORT: "5432"
+      MIMIR_DB_NAME: "${POSTGRES_DB}"
+      MIMIR_DB_USER: "${POSTGRES_USER}"
+      MIMIR_DB_PASSWORD: "${POSTGRES_PASSWORD}"
+      # mTLS — enable and mount certs when available:
+      MIMIR_SERVER_CERT_FILE: "/certs/mimir_cert.crt"
+      MIMIR_SERVER_KEY_FILE: "/certs/mimir_key.crt"
+      # MIMIR_CLIENT_CA_FILE: "/certs/ca.crt"
+    ports:
+      - '8443:8443'
+    volumes:
+      - ./mímir/certs:/certs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres_data:
     driver: local

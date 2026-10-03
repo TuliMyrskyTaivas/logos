@@ -1,0 +1,25 @@
+# Version control
+.git
+.gitignore
+
+# Python environment and bytecode caches
+.venv
+__pycache__
+**/__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+
+# Local configuration and secrets
+.env
+.envrc
+
+# Local PostgreSQL data directory (mounted into the db service)
+data
+
+# Certificates and private keys
+mímir/certs/*.crt
+mímir/certs/*.csr
+mímir/certs/*.key
+mímir/certs/*.pem
+mímir/certs/*.srl

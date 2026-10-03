@@ -1,13 +1,43 @@
+from __future__ import annotations
+
 import pandas as pd
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from datetime import date
+from typing import cast
+
+from ..database import get_db
+from ..schemas import FinancialDataUpload, FinancialDataUploadResult
+
+# Reuse the Logos ORM models
 from models import (
     Industry, Company, Metric, FiscalPeriod,
     RawFinancial, Ratio, RatioFinancial
 )
 
-def add_financial_data(
+router = APIRouter(prefix="/financials", tags=["financials"])
+
+
+def _build_metrics(payload: FinancialDataUpload) -> dict[str, pd.Series]:
+    """Convert request metrics into `dict[str, pd.Series]` (year-indexed)."""
+    result: dict[str, pd.Series] = {}
+    for code, years in payload.metrics.items():
+        data = {int(year): value for year, value in years.items() if value is not None}
+        if data:
+            result[code] = pd.Series(data, dtype="float64")
+    return result
+
+
+def _build_ratios(payload: FinancialDataUpload) -> pd.DataFrame:
+    """Convert request ratios into a DataFrame (year index, ratio columns)."""
+    data = {
+        int(year): {name: value for name, value in ratios.items() if value is not None}
+        for year, ratios in payload.ratios.items()
+    }
+    return pd.DataFrame.from_dict(data, orient="index", dtype="float64")
+
+def _add_financial_data(
     session: Session,
     company_name: str,
     ticker: str,
@@ -79,7 +109,7 @@ def add_financial_data(
         for idx, value in series.items():
             if pd.isna(value):
                 continue
-            year = int(idx)
+            year = cast(int, idx)
             period = get_or_create_period(year)
 
             # Upsert в raw_financials
@@ -119,7 +149,7 @@ def add_financial_data(
         for year, value in ratios_data[ratio_name].items():
             if pd.isna(value):
                 continue
-            year = int(year)
+            year = cast(int, year)
             period = get_or_create_period(year)
 
             # Upsert в ratio_financials
@@ -139,3 +169,50 @@ def add_financial_data(
                 ))
 
     session.flush()
+
+
+@router.post(
+    "",
+    response_model=FinancialDataUploadResult,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload IFRS financial data for a company",
+)
+def upload_financial_data(
+    payload: FinancialDataUpload,
+    session: Session = Depends(get_db),
+) -> FinancialDataUploadResult:
+    """Create or update a company's financial metrics and ratios."""
+    metrics_data = _build_metrics(payload)
+    ratios_data = _build_ratios(payload)
+
+    try:
+        _add_financial_data(
+            session,
+            company_name=payload.companyName,
+            ticker=payload.ticker,
+            industry_name=payload.industryName,
+            metrics_data=metrics_data,
+            ratios_data=ratios_data,
+        )
+    except ValueError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    company = session.execute(
+        select(Company)
+        .join(Industry, Company.industry_id == Industry.id)
+        .where(Company.name == payload.companyName, Industry.name == payload.industryName)
+    ).scalar_one()
+
+    session.commit()
+
+    return FinancialDataUploadResult(
+        companyId=company.id,
+        companyName=payload.companyName,
+        ticker=payload.ticker,
+        metricCount=sum(len(series) for series in metrics_data.values()),
+        ratioCount=int(ratios_data.notna().sum().sum()),
+    )
