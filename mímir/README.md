@@ -12,9 +12,17 @@ The API is specified in `api/openapi.yaml` (OpenAPI 3.2, contract-first).
 
 Current endpoints:
 
-| Method | Path          | Description                                          |
-| ------ | ------------- | ---------------------------------------------------- |
-| POST   | `/financials` | Upload IFRS financial data for a company (upsert).   |
+| Method | Path               | Description                                          |
+| ------ | ------------------ | ---------------------------------------------------- |
+| POST   | `/financials`      | Upload IFRS financial data for a company (upsert).   |
+| GET    | `/industries`      | List industries.                                     |
+| POST   | `/industries`      | Create an industry.                                  |
+| PATCH  | `/industries/{id}` | Update an industry.                                  |
+| DELETE | `/industries/{id}` | Delete an industry.                                  |
+| GET    | `/companies`       | List companies (optional `?industryId=`).            |
+| POST   | `/companies`       | Create a company.                                    |
+| PATCH  | `/companies/{id}`  | Update a company.                                    |
+| DELETE | `/companies/{id}`  | Delete a company.                                    |
 
 The request body mirrors the `add_financial_data` function in the root
 `crud.py`:

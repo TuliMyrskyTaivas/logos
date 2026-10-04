@@ -26,7 +26,7 @@ it.
 ## Docker
 
 - `Dockerfile` builds from the repository root (not `mímir/`), because the
-  service reuses the root `models.py` and `crud.py`.
+  service reuses the root `models.py`.
 - The root `docker-compose.yml` starts `mimir` together with `db` (waiting
   for the DB healthcheck) and maps host port `8443`.
 
@@ -41,7 +41,9 @@ mímir/
 │   ├── database.py         # SQLAlchemy engine / session factory
 │   ├── schemas.py          # pydantic request/response models
 │   └── routers/
-│       └── financials.py   # financial data endpoints
+│       ├── financials.py   # financial data upload endpoint
+│       ├── industries.py   # industries CRUD endpoints
+│       └── companies.py    # companies CRUD endpoints
 ├── tests/                  # pytest tests
 ├── certs/                  # server + client CA certificates (never commit)
 ├── Dockerfile              # build from the repository root

@@ -17,6 +17,10 @@ security:
 tags:
   - name: financials
     description: IFRS financial statements and ratios
+  - name: industries
+    description: Industry classification
+  - name: companies
+    description: Companies
 paths:
   /financials:
     post:
@@ -77,6 +81,242 @@ paths:
                 $ref: "#/components/schemas/Error"
         "409":
           description: Referenced industry does not exist in the database.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /industries:
+    get:
+      tags:
+        - industries
+      operationId: listIndustries
+      summary: List industries
+      description: Returns all industries.
+      responses:
+        "200":
+          description: List of industries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Industry"
+    post:
+      tags:
+        - industries
+      operationId: createIndustry
+      summary: Create an industry
+      description: Creates a new industry classification node.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IndustryCreate"
+      responses:
+        "201":
+          description: Industry created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Industry"
+        "400":
+          description: Malformed request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Industry code already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /industries/{industryId}:
+    patch:
+      tags:
+        - industries
+      operationId: updateIndustry
+      summary: Update an industry
+      description: Updates fields of an existing industry.
+      parameters:
+        - name: industryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IndustryUpdate"
+      responses:
+        "200":
+          description: Updated industry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Industry"
+        "400":
+          description: Malformed request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Industry not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Industry code already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - industries
+      operationId: deleteIndustry
+      summary: Delete an industry
+      description: Deletes an industry. Fails if it still has children or companies.
+      parameters:
+        - name: industryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Industry deleted.
+        "404":
+          description: Industry not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Industry still has child industries or companies.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /companies:
+    get:
+      tags:
+        - companies
+      operationId: listCompanies
+      summary: List companies
+      description: Returns companies, optionally filtered by industry.
+      parameters:
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of companies.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+    post:
+      tags:
+        - companies
+      operationId: createCompany
+      summary: Create a company
+      description: Creates a new company linked to an industry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyCreate"
+      responses:
+        "201":
+          description: Company created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "400":
+          description: Malformed request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Referenced industry does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /companies/{companyId}:
+    patch:
+      tags:
+        - companies
+      operationId: updateCompany
+      summary: Update a company
+      description: Updates fields of an existing company.
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyUpdate"
+      responses:
+        "200":
+          description: Updated company.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "400":
+          description: Malformed request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Company not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Referenced industry does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - companies
+      operationId: deleteCompany
+      summary: Delete a company
+      description: Deletes a company and its financial data.
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Company deleted.
+        "404":
+          description: Company not found.
           content:
             application/json:
               schema:
@@ -180,6 +420,119 @@ components:
         ratioCount:
           type: integer
           description: Number of ratio values stored.
+
+    Industry:
+      type: object
+      description: An industry classification node.
+      required:
+        - id
+        - name
+        - code
+      properties:
+        id:
+          type: integer
+          description: Database identifier.
+        name:
+          type: string
+          description: Industry name.
+        code:
+          type: string
+          description: Unique industry code.
+        parentId:
+          type: [integer, "null"]
+          description: Parent industry id, or null for a top-level industry.
+
+    IndustryCreate:
+      type: object
+      description: Payload for creating an industry.
+      required:
+        - name
+        - code
+      properties:
+        name:
+          type: string
+          description: Industry name.
+        code:
+          type: string
+          description: Unique industry code.
+        parentId:
+          type: [integer, "null"]
+          description: Parent industry id, or null for a top-level industry.
+
+    IndustryUpdate:
+      type: object
+      description: Payload for partially updating an industry.
+      properties:
+        name:
+          type: string
+          description: Industry name.
+        code:
+          type: string
+          description: Unique industry code.
+        parentId:
+          type: [integer, "null"]
+          description: Parent industry id, or null for a top-level industry.
+
+    Company:
+      type: object
+      description: A company linked to an industry.
+      required:
+        - id
+        - name
+        - industryId
+      properties:
+        id:
+          type: integer
+          description: Database identifier.
+        ticker:
+          type: [string, "null"]
+          description: Exchange ticker symbol.
+        name:
+          type: string
+          description: Company name.
+        inn:
+          type: [string, "null"]
+          description: Russian tax identification number (INN).
+        industryId:
+          type: integer
+          description: Id of the industry the company belongs to.
+
+    CompanyCreate:
+      type: object
+      description: Payload for creating a company.
+      required:
+        - name
+        - industryId
+      properties:
+        ticker:
+          type: [string, "null"]
+          description: Exchange ticker symbol.
+        name:
+          type: string
+          description: Company name.
+        inn:
+          type: [string, "null"]
+          description: Russian tax identification number (INN).
+        industryId:
+          type: integer
+          description: Id of the industry the company belongs to.
+
+    CompanyUpdate:
+      type: object
+      description: Payload for partially updating a company.
+      properties:
+        ticker:
+          type: [string, "null"]
+          description: Exchange ticker symbol.
+        name:
+          type: string
+          description: Company name.
+        inn:
+          type: [string, "null"]
+          description: Russian tax identification number (INN).
+        industryId:
+          type: integer
+          description: Id of the industry the company belongs to.
 
     Error:
       type: object

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from .config import Settings, get_settings
 from .database import init_db
-from .routers import financials
+from .routers import companies, financials, industries
 
 TITLE = "Mímir Financial Data API"
 VERSION = "1.0.0"
@@ -20,6 +20,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     init_db(settings.database_url)
     app = FastAPI(title=TITLE, version=VERSION)
     app.include_router(financials.router)
+    app.include_router(industries.router)
+    app.include_router(companies.router)
     return app
 
 
