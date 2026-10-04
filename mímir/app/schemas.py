@@ -88,3 +88,55 @@ class CompanyUpdate(BaseModel):
     name: str | None = Field(default=None, description="Company name.")
     inn: str | None = Field(default=None, description="Russian tax identification number (INN).")
     industryId: int | None = Field(default=None, description="Id of the industry the company belongs to.")
+
+
+class CompanyFinancialData(BaseModel):
+    """Historical financial metrics and ratios of a company."""
+
+    companyId: int = Field(description="Database identifier of the company.")
+    companyName: str = Field(description="Full name of the company.")
+    ticker: str | None = Field(default=None, description="Exchange ticker symbol.")
+    metrics: dict[str, dict[str, float | None]] = Field(description="Metric code -> (fiscal year -> value).")
+    ratios: dict[str, dict[str, float | None]] = Field(description="Fiscal year -> (ratio name -> value).")
+
+
+class Scenario(BaseModel):
+    """A what-if scenario used for forecasting."""
+
+    id: int = Field(description="Database identifier.")
+    code: str = Field(description="Unique scenario code.")
+    name: str = Field(description="Scenario name.")
+    category: str | None = Field(default=None, description="Scenario category.")
+    description: str | None = Field(default=None, description="Human-readable scenario description.")
+    isActive: bool = Field(description="Whether the scenario is active.")
+
+
+class ScenarioVariable(BaseModel):
+    """A metric adjustment within a scenario."""
+
+    metricCode: str = Field(description="Code of the metric the adjustment applies to.")
+    operator: str = Field(description="How the adjustment is applied to the metric.")
+    value: float = Field(description="Adjustment value.")
+
+
+class ForecastEntry(BaseModel):
+    """Forecasted metric values for one scenario."""
+
+    scenarioCode: str = Field(description="Scenario code the forecast belongs to.")
+    metrics: dict[str, float] = Field(description="Metric code -> forecast value.")
+
+
+class ForecastUpload(BaseModel):
+    """Forecast results to store for a company."""
+
+    forecastYear: int = Field(description="Forecasted fiscal year.")
+    scenarios: list[ForecastEntry] = Field(description="Forecasted values per scenario.")
+
+
+class ForecastUploadResult(BaseModel):
+    """Summary of a successful forecast upload."""
+
+    companyId: int = Field(description="Database identifier of the company.")
+    forecastYear: int = Field(description="Forecasted fiscal year.")
+    scenarioCount: int = Field(description="Number of scenarios stored.")
+    metricCount: int = Field(description="Number of forecast values stored.")

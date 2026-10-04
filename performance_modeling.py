@@ -1,48 +1,44 @@
 import argparse
 import logging
-import pandas as pd
-import numpy as np
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-from typing import Dict, List, Optional, Tuple
-from database import get_session
-from models import Company, Forecasts, Metric, FiscalPeriod, RawFinancial, Scenario, ScenarioVariable
+import os
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
-def get_company_id(session: Session, company_name: str) -> Optional[int]:
+import numpy as np
+import pandas as pd
+
+from mimir_client import MIMIR_URL_DEFAULT, request as mimir_request
+
+def get_company_id(mimir_url: str, company_name: str) -> Optional[int]:
     """
-    Retrieve the company ID for the given company name.
+    Retrieve the company ID for the given company name via the mímir service.
     Returns None if the company is not found.
     """
-    stmt = select(Company.id).where(Company.name == company_name)
-    result = session.execute(stmt).scalar_one_or_none()
-    return result
+    companies = mimir_request(mimir_url, "GET", f"/companies?name={quote(company_name)}")
+    return companies[0]["id"] if companies else None
 
 # ------------------------------------------------------------
 # Load historical data from the database and prepare it for modeling.
 # ------------------------------------------------------------
-def load_historical_data(logger: logging.Logger, session: Session, company_name: str) -> Tuple[pd.DataFrame, List[int]]:
+def load_historical_data(logger: logging.Logger, mimir_url: str, company_name: str) -> Tuple[pd.DataFrame, List[int]]:
     """
-    Load data from the database for the specified company.
+    Load data for the specified company via the mímir service.
     Returns a pivot table (years × metric codes) and an ordered list of years.
     """
-    company = get_company_id(session, company_name)
-    if not company:
+    company_id = get_company_id(mimir_url, company_name)
+    if not company_id:
         raise ValueError(f"Company '{company_name}' not found.")
 
-    rows = (
-        session.query(
-            FiscalPeriod.year,
-            Metric.code,
-            RawFinancial.value,
-        )
-        .join(RawFinancial.period)
-        .join(RawFinancial.metric)
-        .filter(RawFinancial.company_id == company)
-        .all()
-    )
-    if not rows:
+    financials = mimir_request(mimir_url, "GET", f"/companies/{company_id}/financials")
+    metrics: dict[str, dict[str, float | None]] = financials.get("metrics") or {}
+    if not metrics:
         raise ValueError("No data found for the company.")
 
+    rows: list[tuple[int, str, float | None]] = [
+        (int(year), code, value)
+        for code, year_values in metrics.items()
+        for year, value in year_values.items()
+    ]
     df = pd.DataFrame(rows, columns=["year", "code", "value"])
     df["value"] = df["value"].astype(float)
     pivot = df.pivot_table(
@@ -156,55 +152,48 @@ def breakeven_analysis(base: pd.Series) -> float:
     be_revenue = fixed_costs / (1 - variable_ratio)
     return be_revenue
 
-def play_scenario(logger: logging.Logger, session: Session, scenarioId: int, base: pd.Series) -> pd.Series:
+def play_scenario(logger: logging.Logger, mimir_url: str, scenarioId: int, base: pd.Series) -> pd.Series:
     """
-    Apply specified scenario from the database to the baseline forecast
+    Apply the specified scenario from the mímir service to the baseline forecast.
     """
-
-    # Get variables for the scenario from the database
-    variables = (
-        session.query(ScenarioVariable)
-        .join(Metric)
-        .filter(ScenarioVariable.scenario_id == scenarioId)
-        .all()
-    )
+    variables = mimir_request(mimir_url, "GET", f"/scenarios/{scenarioId}/variables")
 
     forecast = base.copy()
     # Revenue first, because scale_to_revenue depends on it
-    revenue = next((v for v in variables if v.metric == 'revenue'), None)
-    if revenue and revenue.operator == 'multiply':
-        forecast['revenue'] = forecast['revenue'] * float(revenue.value)
+    revenue = next((v for v in variables if v["metricCode"] == "revenue"), None)
+    if revenue and revenue["operator"] == "multiply":
+        forecast["revenue"] = forecast["revenue"] * float(revenue["value"])
 
     # Other variables of scenario
     for var in variables:
-        if var.metric == 'revenue':
-            continue  # already done
+        metric_code = var["metricCode"]
+        operator = var["operator"]
+        value = float(var["value"])
 
-        metric_code = getattr(var.metric, 'code', None)
-        if not metric_code or metric_code not in forecast.index:
+        if metric_code == "revenue":
+            continue  # already done
+        if metric_code not in forecast.index:
             continue
 
-        #operator = var.operator.value if hasattr(var.operator, 'value') else str(var.operator)
-
-        if var.operator == 'multiply':
-            forecast[metric_code] = forecast[metric_code] * float(var.value)
-        elif var.operator == 'add':
-            forecast[metric_code] = forecast[metric_code] + float(var.value)
-        elif var.operator == 'set':
-            forecast[metric_code] = float(var.value)
-        elif var.operator == 'scale_to_revenue':
-            if 'revenue' in forecast.index and forecast['revenue'] != 0:
-                ratio = abs(base[metric_code]) / base['revenue']
-                forecast[metric_code] = -abs(forecast['revenue'] * ratio)
+        if operator == "multiply":
+            forecast[metric_code] = forecast[metric_code] * value
+        elif operator == "add":
+            forecast[metric_code] = forecast[metric_code] + value
+        elif operator == "set":
+            forecast[metric_code] = value
+        elif operator == "scale_to_revenue":
+            if "revenue" in forecast.index and forecast["revenue"] != 0:
+                ratio = abs(base[metric_code]) / base["revenue"]
+                forecast[metric_code] = -abs(forecast["revenue"] * ratio)
         else:
-            logger.warning(f"unknown operator {var.operator} for variable {var.metric}")
+            logger.warning(f"unknown operator {operator} for variable {metric_code}")
 
     # Recalculate derived indicators and return the result
     return recalculate_indicators(forecast)
 
 def play_scenarios(
     logger: logging.Logger,
-    session: Session,
+    mimir_url: str,
     df: pd.DataFrame,
     last_year: int,
     forecast_year: int,
@@ -218,26 +207,20 @@ def play_scenarios(
     base = extrapolate_series(df, forecast_year)
 
     # Results dictionary to hold all scenarios
-    forecasts : Dict[str, pd.Series] = {}
+    forecasts: Dict[str, pd.Series] = {}
     forecasts["base"] = recalculate_indicators(base)
 
-    # Get variables for the scenario from the database
-    scenarios = (
-        session.query(Scenario)
-        .filter(Scenario.is_active == True)
-        .all()
-    )
-
-    logger.info(f"{len(scenarios)} active scenarios loaded from the database")
+    scenarios = mimir_request(mimir_url, "GET", "/scenarios?isActive=true")
+    logger.info(f"{len(scenarios)} active scenarios loaded from the mímir service")
     for scenario in scenarios:
-        forecasts[scenario.code] = play_scenario(logger, session, scenario.id, base)
+        forecasts[scenario["code"]] = play_scenario(logger, mimir_url, scenario["id"], base)
 
     return forecasts
 
 # ------------------------------------------------------------
 # Main function to run the modeling and output results.
 # ------------------------------------------------------------
-def forecast_scenarios(logger: logging.Logger, session: Session, company_name: str, year: Optional[int]) -> Tuple[pd.DataFrame, int]:
+def forecast_scenarios(logger: logging.Logger, mimir_url: str, company_name: str, year: Optional[int]) -> Tuple[pd.DataFrame, int]:
     """
     Main entry point for the forecasting model.
     Returns a dataframe with scenarios, breakeven points, safety margins, critical drops, and required price increases.
@@ -245,7 +228,7 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
     logger.info(f"Loading historical data for {company_name}")
 
     # Load historical data and generate scenarios
-    df, years = load_historical_data(logger, session, company_name)
+    df, years = load_historical_data(logger, mimir_url, company_name)
     first_year = years[0]
     last_year = years[-1]
     if year is not None:
@@ -256,7 +239,7 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
     if forecast_year <= first_year or forecast_year > last_year + 1:
         raise ValueError(f"Forecast year {forecast_year} is out of valid range ({first_year + 1} to {last_year + 1})")
 
-    scenarios = play_scenarios(logger, session, df, last_year, forecast_year)
+    scenarios = play_scenarios(logger, mimir_url, df, last_year, forecast_year)
 
     # Calculate breakeven revenue for each scenario
     be : Dict[str, float] = {}
@@ -332,68 +315,50 @@ def forecast_scenarios(logger: logging.Logger, session: Session, company_name: s
 
 def save_simulation_results(
     logger: logging.Logger,
-    session: Session,
+    mimir_url: str,
     company: str,
     forecast_year: int,
-    forecast: pd.DataFrame
-):
-    logger.debug(f"Saving {forecast_year} forecasts for {company} to the database")
-    company_id = get_company_id(session, company)
+    forecast: pd.DataFrame,
+) -> None:
+    """Save the scenario forecast results through the mímir service."""
+    logger.debug(f"Saving {forecast_year} forecasts for {company} via mímir")
+    company_id = get_company_id(mimir_url, company)
     if company_id is None:
         raise ValueError(f"Company '{company}' not found.")
 
-    # Iterate over the forecast DataFrame and save each scenario's results to the database
+    scenarios: List[dict[str, Any]] = []
     for row in forecast.itertuples():
-        scenario_name = str(row.Index).lower()
-        scenario = session.query(Scenario).filter(Scenario.code == scenario_name).first()
-        if not scenario:
-            logger.warning(f"Scenario '{scenario_name}' not found in the database. Skipping.")
-            continue  # Skip if the scenario is not found in the database
-
-        # Use column names to get metric values and save them to the database
-        for indicator in forecast.columns[1:]:  # Skip the first column (Scenario)
+        scenario_code = str(row.Index).lower()
+        metrics: Dict[str, float] = {}
+        for indicator in forecast.columns:
             metric_code = indicator.replace(" ", "_").replace(",", "").replace("%", "").lower()
             value = getattr(row, indicator, None)
             if value is None or value == "—":
-                logger.warning(f"Value for indicator '{indicator}' in scenario '{scenario_name}' is not available. Skipping.")
-                continue  # Skip if the value is not available
-
-            metric = session.query(Metric).filter(Metric.code == metric_code).first()
-            if not metric:
-                logger.warning(f"Metric '{metric_code}' not found in the database. Skipping.")
-                continue  # Skip if the metric is not found in the database
-
+                continue
             numeric_value = value.replace(',', '') if isinstance(value, str) else value
             try:
                 numeric_value = float(numeric_value)
             except (TypeError, ValueError):
-                logger.warning(f"Value '{value}' for metric '{metric_code}' in scenario '{scenario_name}' is not numeric. Skipping.")
+                logger.warning(
+                    f"Value '{value}' for metric '{metric_code}' in scenario '{scenario_code}' is not numeric. Skipping."
+                )
                 continue
+            metrics[metric_code] = numeric_value
+        if metrics:
+            scenarios.append({"scenarioCode": scenario_code, "metrics": metrics})
 
-            existing_entry = (
-                session.query(Forecasts)
-                .filter(
-                    Forecasts.company_id == company_id,
-                    Forecasts.scenario_id == scenario.id,
-                    Forecasts.forecast_year == forecast_year,
-                    Forecasts.metric_id == metric.id,
-                )
-                .one_or_none()
-            )
+    if not scenarios:
+        return
 
-            if existing_entry is not None:
-                existing_entry.value = numeric_value
-            else:
-                forecast_entry = Forecasts(
-                    company_id=company_id,
-                    scenario_id=scenario.id,
-                    forecast_year=forecast_year,
-                    metric_id=metric.id,
-                    value=numeric_value,
-                )
-                session.add(forecast_entry)
-
-    session.flush()
+    result = mimir_request(
+        mimir_url,
+        "PUT",
+        f"/companies/{company_id}/forecasts",
+        {"forecastYear": forecast_year, "scenarios": scenarios},
+    )
+    logger.info(
+        f"Saved forecasts via mímir: scenarios={result.get('scenarioCount')}, metrics={result.get('metricCount')}"
+    )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -406,8 +371,9 @@ Usage examples:
         """
     )
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output for debugging')
-    parser.add_argument('--dry-run', '-d', action='store_true', help='Run the model without saving results to the database')
+    parser.add_argument('--dry-run', '-d', action='store_true', help='Run the model without saving results')
     parser.add_argument('--year', '-y', type=int, help='Forecast year (default: next year after last historical data)')
+    parser.add_argument('--mimir-url', type=str, default=os.getenv('MIMIR_URL', MIMIR_URL_DEFAULT), help='Mímir service base URL')
     parser.add_argument('company_name', type=str, help='Name of the company to model')
     args = parser.parse_args()
 
@@ -428,16 +394,12 @@ Usage examples:
     logger.info("Starting financial modeling...")
 
     try:
-        AnalystSession = get_session('analyst', 'analyst_password')
-        with AnalystSession() as session:
-            result, forecast_year = forecast_scenarios(logger, session, args.company_name, year=args.year)
-            print(result)
-            if not args.dry_run:
-                # Save results to the database
-                logger.info("Saving simulation results to the database...")
-                save_simulation_results(logger, session, args.company_name, forecast_year=forecast_year, forecast=result)
-                session.commit()
-                logger.info("Results saved successfully.")
+        result, forecast_year = forecast_scenarios(logger, args.mimir_url, args.company_name, year=args.year)
+        print(result)
+        if not args.dry_run:
+            logger.info("Saving simulation results via the mímir service...")
+            save_simulation_results(logger, args.mimir_url, args.company_name, forecast_year=forecast_year, forecast=result)
+            logger.info("Results saved successfully.")
     except Exception as e:
         import traceback
         logger.error(f"An error occurred: {e}")

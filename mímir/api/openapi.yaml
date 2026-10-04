@@ -21,6 +21,10 @@ tags:
     description: Industry classification
   - name: companies
     description: Companies
+  - name: scenarios
+    description: What-if scenarios for forecasting
+  - name: forecasts
+    description: Forecasted financial results
 paths:
   /financials:
     post:
@@ -209,13 +213,18 @@ paths:
         - companies
       operationId: listCompanies
       summary: List companies
-      description: Returns companies, optionally filtered by industry.
+      description: Returns companies, optionally filtered by industry or name.
       parameters:
         - name: industryId
           in: query
           required: false
           schema:
             type: integer
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: List of companies.
@@ -317,6 +326,123 @@ paths:
           description: Company deleted.
         "404":
           description: Company not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /scenarios:
+    get:
+      tags:
+        - scenarios
+      operationId: listScenarios
+      summary: List scenarios
+      description: Returns what-if scenarios, optionally filtered by active status.
+      parameters:
+        - name: isActive
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of scenarios.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Scenario"
+  /scenarios/{scenarioId}/variables:
+    get:
+      tags:
+        - scenarios
+      operationId: listScenarioVariables
+      summary: List variables of a scenario
+      description: Returns the metric adjustments that define a scenario.
+      parameters:
+        - name: scenarioId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of scenario variables.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScenarioVariable"
+        "404":
+          description: Scenario not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /companies/{companyId}/financials:
+    get:
+      tags:
+        - financials
+      operationId: getCompanyFinancials
+      summary: Get historical financial data for a company
+      description: Returns the company's stored financial metrics and ratios.
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Historical financial data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyFinancialData"
+        "404":
+          description: Company not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /companies/{companyId}/forecasts:
+    put:
+      tags:
+        - forecasts
+      operationId: uploadForecasts
+      summary: Save forecast results for a company
+      description: |
+        Upserts forecasted metric values for a company and forecast year.
+        Each entry references a scenario by code and metrics by code.
+        Unknown metric codes are skipped.
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForecastUpload"
+      responses:
+        "201":
+          description: Forecasts stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForecastUploadResult"
+        "400":
+          description: Malformed request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Company or scenario not found.
           content:
             application/json:
               schema:
@@ -533,6 +659,135 @@ components:
         industryId:
           type: integer
           description: Id of the industry the company belongs to.
+
+    CompanyFinancialData:
+      type: object
+      description: Historical financial metrics and ratios of a company.
+      required:
+        - companyId
+        - companyName
+        - metrics
+        - ratios
+      properties:
+        companyId:
+          type: integer
+          description: Database identifier of the company.
+        companyName:
+          type: string
+          description: Full name of the company.
+        ticker:
+          type: [string, "null"]
+          description: Exchange ticker symbol.
+        metrics:
+          $ref: "#/components/schemas/MetricSeries"
+        ratios:
+          $ref: "#/components/schemas/RatioSeries"
+
+    Scenario:
+      type: object
+      description: A what-if scenario used for forecasting.
+      required:
+        - id
+        - code
+        - name
+        - category
+        - isActive
+      properties:
+        id:
+          type: integer
+          description: Database identifier.
+        code:
+          type: string
+          description: Unique scenario code.
+        name:
+          type: string
+          description: Scenario name.
+        category:
+          type: [string, "null"]
+          description: Scenario category.
+        description:
+          type: [string, "null"]
+          description: Human-readable scenario description.
+        isActive:
+          type: boolean
+          description: Whether the scenario is active.
+
+    ScenarioVariable:
+      type: object
+      description: A metric adjustment within a scenario.
+      required:
+        - metricCode
+        - operator
+        - value
+      properties:
+        metricCode:
+          type: string
+          description: Code of the metric the adjustment applies to.
+        operator:
+          type: string
+          description: How the adjustment is applied to the metric.
+          enum:
+            - multiply
+            - add
+            - set
+            - scale_to_revenue
+        value:
+          type: number
+          description: Adjustment value.
+
+    ForecastEntry:
+      type: object
+      description: Forecasted metric values for one scenario.
+      required:
+        - scenarioCode
+        - metrics
+      properties:
+        scenarioCode:
+          type: string
+          description: Scenario code the forecast belongs to.
+        metrics:
+          type: object
+          description: Metric code -> forecast value.
+          additionalProperties:
+            type: number
+
+    ForecastUpload:
+      type: object
+      description: Forecast results to store for a company.
+      required:
+        - forecastYear
+        - scenarios
+      properties:
+        forecastYear:
+          type: integer
+          description: Forecasted fiscal year.
+        scenarios:
+          type: array
+          description: Forecasted values per scenario.
+          items:
+            $ref: "#/components/schemas/ForecastEntry"
+
+    ForecastUploadResult:
+      type: object
+      description: Summary of a successful forecast upload.
+      required:
+        - companyId
+        - forecastYear
+        - scenarioCount
+        - metricCount
+      properties:
+        companyId:
+          type: integer
+          description: Database identifier of the company.
+        forecastYear:
+          type: integer
+          description: Forecasted fiscal year.
+        scenarioCount:
+          type: integer
+          description: Number of scenarios stored.
+        metricCount:
+          type: integer
+          description: Number of forecast values stored.
 
     Error:
       type: object

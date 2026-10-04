@@ -5,12 +5,15 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..schemas import Company, CompanyCreate, CompanyUpdate
+from ..schemas import Company, CompanyCreate, CompanyFinancialData, CompanyUpdate
 
 from models import (
     Company as CompanyModel,
     Industry as IndustryModel,
+    FiscalPeriod,
     Forecasts,
+    Metric,
+    Ratio,
     RawFinancial,
     RatioFinancial,
 )
@@ -31,14 +34,56 @@ def _to_company(company: CompanyModel) -> Company:
 @router.get("", response_model=list[Company])
 def list_companies(
     industryId: int | None = None,
+    name: str | None = None,
     session: Session = Depends(get_db),
 ) -> list[Company]:
-    """Return companies, optionally filtered by industry."""
+    """Return companies, optionally filtered by industry or name."""
     stmt = select(CompanyModel).order_by(CompanyModel.id)
     if industryId is not None:
         stmt = stmt.where(CompanyModel.industry_id == industryId)
+    if name is not None:
+        stmt = stmt.where(CompanyModel.name == name)
     companies = session.execute(stmt).scalars().all()
     return [_to_company(c) for c in companies]
+
+
+@router.get("/{companyId}/financials", response_model=CompanyFinancialData)
+def get_company_financials(
+    companyId: int,
+    session: Session = Depends(get_db),
+) -> CompanyFinancialData:
+    """Return the company's stored financial metrics and ratios."""
+    company = session.get(CompanyModel, companyId)
+    if company is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+
+    metric_rows = session.execute(
+        select(FiscalPeriod.year, Metric.code, RawFinancial.value)
+        .join(FiscalPeriod, RawFinancial.period_id == FiscalPeriod.id)
+        .join(Metric, RawFinancial.metric_id == Metric.id)
+        .where(RawFinancial.company_id == companyId)
+    ).all()
+    metrics: dict[str, dict[str, float | None]] = {}
+    for year, code, value in metric_rows:
+        metrics.setdefault(code, {})[str(int(year))] = float(value) if value is not None else None
+
+    ratio_rows = session.execute(
+        select(FiscalPeriod.year, Ratio.name, RatioFinancial.value)
+        .join(FiscalPeriod, RatioFinancial.period_id == FiscalPeriod.id)
+        .join(Ratio, RatioFinancial.ratio_id == Ratio.id)
+        .where(RatioFinancial.company_id == companyId)
+    ).all()
+    ratios: dict[str, dict[str, float | None]] = {}
+    for year, name, value in ratio_rows:
+        ratios.setdefault(str(int(year)), {})[name] = float(value) if value is not None else None
+
+    return CompanyFinancialData(
+        companyId=company.id,
+        companyName=company.name,
+        ticker=company.ticker,
+        metrics=metrics,
+        ratios=ratios,
+    )
 
 
 @router.post("", response_model=Company, status_code=status.HTTP_201_CREATED)
