@@ -74,6 +74,23 @@ mímir/
 - `MIMIR_SERVER_KEY_FILE` — server TLS private key (PEM).
 - `MIMIR_CLIENT_CA_FILE` — CA bundle used to verify client certificates.
 
+## Testing
+
+Tests live in `tests/` and run against a dedicated PostgreSQL database
+(`<POSTGRES_DB>_test`). The database is recreated and migrated with
+`alembic upgrade head` for each test session, so the schema matches production.
+
+Install dev dependencies and run pytest from the `mímir/` directory:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Each test runs inside a transaction that is rolled back afterwards (sessions
+join it via savepoints), and `app.dependency_overrides[get_db]` redirects
+database access to that transaction.
+
 ## Rules
 
 - Do not commit secrets, `.env` files, or certificates (`certs/`).

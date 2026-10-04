@@ -35,6 +35,12 @@ def upgrade() -> None:
          'formula': 'Summary indicator Beneish M-Score (russian version)'}
     ])
 
+    # Resync the sequence after seeding a row with an explicit id.
+    op.execute(
+        "SELECT setval('logos.ratios_id_seq', "
+        "(SELECT COALESCE(MAX(id), 1) FROM logos.ratios))"
+    )
+
     # Calculate russian version of M-Score for all companies present in the database
     bind = op.get_bind()
 

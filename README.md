@@ -18,12 +18,19 @@ logos/
 ├── ratios.py                  # Financial ratio calculations (incl. Beneish M-Score)
 ├── import_ifrs_from_excel.py  # CLI: import IFRS statements from Excel
 ├── performance_modeling.py    # CLI: scenario forecasting and breakeven analysis
+├── mimir_client.py            # HTTP client for the Mímir service
 ├── alembic/                   # Database migrations (Alembic)
 ├── alembic.ini                # Alembic configuration
-├── docker-compose.yml         # PostgreSQL 18 service
+├── docker-compose.yml         # PostgreSQL 18 + Mímir services
 ├── requirements.txt           # Python dependencies
 ├── logos.erm.json             # Entity-relationship model (ERD)
 ├── README.md
+├── mímir/                     # Python (FastAPI) gateway to the database
+│   ├── api/openapi.yaml       # OpenAPI 3.2 spec (source of truth)
+│   ├── app/                   # FastAPI application (routers, schemas)
+│   ├── certs/                 # mTLS certificates (never commit)
+│   ├── Dockerfile             # multi-stage Docker build
+│   └── requirements.txt
 └── gûldvegt/                  # Go HTTP service for precious metals quotes
     ├── api/openapi.yaml       # OpenAPI 3.2 specification
     ├── cmd/api/main.go        # echo server entry point
@@ -70,6 +77,49 @@ cd gûldvegt
 go run ./cmd/api
 ```
 
+## Mímir
+
+Mímir is a Python (FastAPI) gateway to the Logos PostgreSQL database. It
+exposes financial analytics (IFRS statements, ratios, Beneish M-Score) and
+modeling results over an HTTP REST API. The API is specified contract-first in
+`mímir/api/openapi.yaml` (OpenAPI 3.2), and authentication is performed with
+mutual TLS (mTLS) using client X.509 certificates.
+
+Endpoints:
+
+| Method | Path                        | Description                               |
+| ------ | --------------------------- | ----------------------------------------- |
+| POST   | `/financials`               | Upload IFRS financial data (upsert)       |
+| GET    | `/companies`                | List companies (`?name=`, `?industryId=`) |
+| POST   | `/companies`                | Create a company                          |
+| PATCH  | `/companies/{id}`           | Update a company                          |
+| DELETE | `/companies/{id}`           | Delete a company and its financial data   |
+| GET    | `/companies/{id}/financials`| Get historical metrics and ratios         |
+| PUT    | `/companies/{id}/forecasts` | Save forecast results (upsert)            |
+| GET    | `/industries`               | List industries                           |
+| POST   | `/industries`               | Create an industry                        |
+| PATCH  | `/industries/{id}`          | Update an industry                        |
+| DELETE | `/industries/{id}`          | Delete an industry                        |
+| GET    | `/scenarios`                | List scenarios (`?isActive=`)             |
+| GET    | `/scenarios/{id}/variables` | List scenario variables                   |
+
+The CLI tools `import_ifrs_from_excel.py` and `performance_modeling.py` talk to
+Mímir over HTTP through the shared `mimir_client.py` instead of writing to the
+database directly.
+
+Run it with:
+
+```bash
+cd mímir
+pip install -r requirements.txt
+python -m app.main
+```
+
+The service listens on `0.0.0.0:8443` by default (`MIMIR_HOST`/`MIMIR_PORT`).
+When `MIMIR_SERVER_CERT_FILE`, `MIMIR_SERVER_KEY_FILE` and
+`MIMIR_CLIENT_CA_FILE` are set, it serves HTTPS with mutual TLS. See
+`mímir/AGENTS.md` for the full list of `MIMIR_*` environment variables.
+
 ## Getting Started
 
 ### Prerequisites
@@ -95,7 +145,7 @@ go run ./cmd/api
    POSTGRES_PASSWORD=postgres
    ```
 
-3. **Start PostgreSQL:**
+3. **Start PostgreSQL and Mímir:**
 
    ```bash
    docker compose up -d
@@ -125,7 +175,7 @@ python import_ifrs_from_excel.py reports.xlsx \
   --verbose
 ```
 
-The script parses all sheets in the Excel file, auto-detects income statement, balance sheet, and cash flow statement sheets by keyword matching (supports both Russian and English), extracts key indicators, computes ratios, and saves everything to the database.
+The script parses all sheets in the Excel file, auto-detects income statement, balance sheet, and cash flow statement sheets by keyword matching (supports both Russian and English), extracts key indicators, computes ratios, and uploads the results to the Mímir service. Point it at the service with `--mimir-url` (or the `MIMIR_URL` environment variable).
 
 #### Run Scenario Modeling
 
@@ -139,11 +189,11 @@ python performance_modeling.py --year 2027 "ACME Corp"
 # Verbose output with debug logging
 python performance_modeling.py --verbose "ACME Corp"
 
-# Dry run (no database writes)
+# Dry run (does not save results)
 python performance_modeling.py --dry-run "ACME Corp"
 ```
 
-The modeler loads historical data, extrapolates each metric linearly, applies all active scenarios from the database, and outputs a comparison table including revenue, profit, margins, cash flow, breakeven revenue, safety margin, critical revenue drop, and required price increase for each scenario.
+The modeler loads historical data, extrapolates each metric linearly, applies all active scenarios, and outputs a comparison table including revenue, profit, margins, cash flow, breakeven revenue, safety margin, critical revenue drop, and required price increase for each scenario. Results are saved through the Mímir service (`--mimir-url` / `MIMIR_URL`), unless `--dry-run` is passed.
 
 ## License
 

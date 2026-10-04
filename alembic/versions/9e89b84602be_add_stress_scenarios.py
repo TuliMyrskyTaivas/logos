@@ -71,6 +71,12 @@ def upgrade() -> None:
          'description': 'Optimization: general business expenses -10%.'}
     ])
 
+    # Resync the sequence after seeding rows with explicit ids.
+    op.execute(
+        "SELECT setval('logos.scenarios_id_seq', "
+        "(SELECT COALESCE(MAX(id), 1) FROM logos.scenarios))"
+    )
+
     # Create a table for scenario variables
     op.create_table('scenario_variables',
         sa.Column('id', sa.Integer(), primary_key=True, nullable=False),

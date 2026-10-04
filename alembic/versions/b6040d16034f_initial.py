@@ -27,9 +27,14 @@ def upgrade() -> None:
 
     # Create schema and users
     op.execute("CREATE SCHEMA IF NOT EXISTS logos")
-    op.execute(f"CREATE USER importer WITH PASSWORD '{importer_password}'")
-    op.execute(f"CREATE USER analyst WITH PASSWORD '{analyst_password}'")
-    op.execute("GRANT USAGE ON SCHEMA logos TO importer, analyst")
+    bind = op.get_bind()
+    for role, password in [("importer", importer_password), ("analyst", analyst_password)]:
+        role_exists = bind.execute(
+            sa.text("SELECT 1 FROM pg_roles WHERE rolname = :role"), {"role": role}
+        ).scalar()
+        if not role_exists:
+            bind.execute(sa.text(f"CREATE USER {role} WITH PASSWORD '{password}'"))
+    bind.execute(sa.text("GRANT USAGE ON SCHEMA logos TO importer, analyst"))
 
     # Create tables
     op.create_table('industries',
@@ -230,6 +235,13 @@ def upgrade() -> None:
         {'id': 14, 'code': 'm_score', 'name': 'M-Score',
          'formula': 'Summary indicator Beneish M-Score'},
     ])
+
+    # Resync sequences after seeding rows with explicit ids.
+    for table in ("industries", "metrics", "ratios"):
+        op.execute(
+            f"SELECT setval('logos.{table}_id_seq', "
+            f"(SELECT COALESCE(MAX(id), 1) FROM logos.{table}))"
+        )
 
     # Grant privileges to users
     op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE logos.companies, logos.raw_financials, logos.ratio_financials, logos.fiscal_periods TO importer")
