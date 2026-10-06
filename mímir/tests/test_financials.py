@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from ._json_types import CompanyJson, FinancialUploadJson, IndustryJson
 
-def _seed_industry_and_company(client: TestClient) -> tuple[dict, dict]:
+
+def _seed_industry_and_company(client: TestClient) -> tuple[IndustryJson, CompanyJson]:
     industry = client.post("/industries", json={"name": "Banks", "code": "BANKS"}).json()
     company = client.post(
         "/companies",
@@ -17,7 +19,7 @@ def _seed_industry_and_company(client: TestClient) -> tuple[dict, dict]:
 def test_upload_and_get_financials(client: TestClient) -> None:
     _, company = _seed_industry_and_company(client)
 
-    upload = {
+    upload: FinancialUploadJson = {
         "companyName": "Sber",
         "ticker": "SBER",
         "industryName": "Banks",
@@ -45,7 +47,7 @@ def test_upload_and_get_financials(client: TestClient) -> None:
 
 
 def test_upload_financials_industry_not_found(client: TestClient) -> None:
-    upload = {
+    upload: FinancialUploadJson = {
         "companyName": "Sber",
         "ticker": "SBER",
         "industryName": "No Such",

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from ._json_types import CompanyJson, ForecastUploadJson, ScenarioJson
 
-def _create_company(client: TestClient) -> dict:
+
+def _create_company(client: TestClient) -> CompanyJson:
     industry = client.post("/industries", json={"name": "IT", "code": "TEST_IT"}).json()
     return client.post(
         "/companies",
@@ -13,7 +15,7 @@ def _create_company(client: TestClient) -> dict:
     ).json()
 
 
-def _scenario_by_code(client: TestClient, code: str) -> dict:
+def _scenario_by_code(client: TestClient, code: str) -> ScenarioJson:
     scenarios = client.get("/scenarios").json()
     return next(s for s in scenarios if s["code"] == code)
 
@@ -40,25 +42,28 @@ def test_scenario_variables_not_found(client: TestClient) -> None:
 def test_upload_forecasts(client: TestClient) -> None:
     company = _create_company(client)
 
-    resp = client.put(
-        f"/companies/{company['id']}/forecasts",
-        json={"forecastYear": 2026, "scenarios": [{"scenarioCode": "base", "metrics": {"revenue": 150.0}}]},
-    )
+    upload: ForecastUploadJson = {
+        "forecastYear": 2026,
+        "scenarios": [{"scenarioCode": "base", "metrics": {"revenue": 150.0}}],
+    }
+    resp = client.put(f"/companies/{company['id']}/forecasts", json=upload)
     assert resp.status_code == 201
     assert resp.json()["scenarioCount"] == 1
     assert resp.json()["metricCount"] == 1
 
     # Unknown scenario -> 404
-    bad = client.put(
-        f"/companies/{company['id']}/forecasts",
-        json={"forecastYear": 2026, "scenarios": [{"scenarioCode": "nope", "metrics": {"revenue": 1.0}}]},
-    )
+    bad_payload: ForecastUploadJson = {
+        "forecastYear": 2026,
+        "scenarios": [{"scenarioCode": "nope", "metrics": {"revenue": 1.0}}],
+    }
+    bad = client.put(f"/companies/{company['id']}/forecasts", json=bad_payload)
     assert bad.status_code == 404
 
     # Unknown metric is skipped (tolerant upload)
-    skip = client.put(
-        f"/companies/{company['id']}/forecasts",
-        json={"forecastYear": 2026, "scenarios": [{"scenarioCode": "base", "metrics": {"no_such": 1.0, "revenue": 200.0}}]},
-    )
+    skip_payload: ForecastUploadJson = {
+        "forecastYear": 2026,
+        "scenarios": [{"scenarioCode": "base", "metrics": {"no_such": 1.0, "revenue": 200.0}}],
+    }
+    skip = client.put(f"/companies/{company['id']}/forecasts", json=skip_payload)
     assert skip.status_code == 201
     assert skip.json()["metricCount"] == 1  # only 'revenue' stored

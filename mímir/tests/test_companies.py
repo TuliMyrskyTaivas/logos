@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from ._json_types import IndustryJson
 
-def _create_industry(client: TestClient, code: str = "TEST_IT") -> dict:
+
+def _create_industry(client: TestClient, code: str = "TEST_IT") -> IndustryJson:
     return client.post("/industries", json={"name": "IT", "code": code}).json()
 
 
