@@ -6,18 +6,15 @@ and upload the results to the mímir service.
 
 import sys
 import os
-import json
-import ssl
 import argparse
 import logging
-import urllib.error
-import urllib.request
 import pandas as pd
 import re
 from pathlib import Path
 from typing import Any, cast
 
 from ratios import Ratios
+from mimir_client import MIMIR_URL_DEFAULT, request as mimir_request
 
 def is_year(value : Any) -> bool:
     """
@@ -645,9 +642,6 @@ class CustomFormatter(logging.Formatter):
         return msg
 
 
-MIMIR_URL_DEFAULT = "https://localhost:8443"
-
-
 def _series_to_year_values(series: pd.Series) -> dict[str, float]:
     """Convert a year-indexed Series into {year: value}, skipping NaN values."""
     return {
@@ -675,9 +669,9 @@ def _build_mimir_payload(
     ratios_payload: dict[str, dict[str, float]] = {}
     if not ratios.empty:
         for year, row in ratios.iterrows():
-            year_int = cast(int, year)
+            year_int = int(cast(int, year))
             year_values = {
-                str(ratio_name): cast(float, row[ratio_name])
+                str(ratio_name): float(cast(float, row[ratio_name]))
                 for ratio_name in ratios.columns
                 if not pd.isna(row[ratio_name])
             }
@@ -691,67 +685,6 @@ def _build_mimir_payload(
         "metrics": metrics,
         "ratios": ratios_payload,
     }
-
-
-def _mimir_ssl_context() -> ssl.SSLContext | None:
-    """Build an SSL context for mTLS, using client certificate/key/CA if set.
-
-    Set `MIMIR_VERIFY_SSL=0` to disable server certificate verification
-    (e.g. for testing against a self-signed server certificate).
-    """
-    ca_file = os.getenv("MIMIR_CA_FILE")
-    cert_file = os.getenv("MIMIR_CLIENT_CERT_FILE")
-    key_file = os.getenv("MIMIR_CLIENT_KEY_FILE")
-    verify_ssl = os.getenv("MIMIR_VERIFY_SSL", "1").strip().lower() not in ("0", "false", "no", "off")
-
-    if not verify_ssl:
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-    elif not (ca_file or cert_file):
-        return None
-    else:
-        context = ssl.create_default_context(cafile=ca_file)
-
-    if cert_file:
-        context.load_cert_chain(certfile=cert_file, keyfile=key_file)
-    return context
-
-
-def send_to_mimir(
-    mimir_url: str,
-    company: str,
-    ticker: str,
-    industry: str,
-    metrics_data: dict[str, pd.Series],
-    ratios: pd.DataFrame,
-    logger: logging.Logger,
-) -> dict[str, Any]:
-    """Upload financial data to the mímir service and return the response."""
-    payload = _build_mimir_payload(company, ticker, industry, metrics_data, ratios)
-    url = f"{mimir_url.rstrip('/')}/financials"
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    logger.debug(
-        "sending %d metrics and %d ratio rows to %s",
-        len(payload["metrics"]),
-        len(payload["ratios"]),
-        url,
-    )
-
-    context = _mimir_ssl_context()
-    try:
-        with urllib.request.urlopen(request, timeout=60, context=context) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"mímir returned HTTP {exc.code}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"cannot reach mímir at {url}: {exc.reason}") from exc
 
 
 def main():
@@ -812,15 +745,14 @@ Usage examples:
             if series is not None
         }
         try:
-            result = send_to_mimir(
-                args.mimir_url,
+            payload = _build_mimir_payload(
                 args.company,
                 args.ticker or "",
                 args.industry,
                 metrics_data,
                 ratios,
-                logger,
             )
+            result = mimir_request(args.mimir_url, "POST", "/financials", payload)
             logger.info(
                 "data sent to mímir: companyId=%s, metricCount=%s, ratioCount=%s",
                 result.get("companyId"),
