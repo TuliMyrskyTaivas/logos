@@ -1,5 +1,5 @@
 # Build context: repository root (the service reuses the root models.py).
-FROM python:3.12-slim AS base
+FROM python:3.14-slim AS base
 
 # Install Python dependencies into an isolated prefix. The pip cache mount
 # keeps downloaded wheels between builds, so packages are not re-downloaded
@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --prefix=/install -r requirements.txt
 
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
