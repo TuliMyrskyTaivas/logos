@@ -19,11 +19,20 @@ WORKDIR /logos/mímir
 # Reuse the packages installed in the dependencies stage.
 COPY --from=base /install /usr/local
 
-# Logos ORM models shared with the CLI importers.
-COPY models.py /logos/
+# Logos ORM models and database config shared with the CLI importers.
+COPY database.py models.py ratios.py /logos/
+
+# Alembic migrations (config, environment and revision scripts).
+COPY alembic.ini /logos/
+COPY alembic /logos/alembic
 
 # Service source.
 COPY mímir/app ./app
+
+# Apply pending migrations on startup, then start the API server.
+COPY mímir/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 EXPOSE 8443
 
