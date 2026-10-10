@@ -22,11 +22,18 @@ def _to_industry(industry: IndustryModel) -> Industry:
 
 
 @router.get("", response_model=list[Industry])
-def list_industries(session: Session = Depends(get_db)) -> list[Industry]:
-    """Return all industries."""
-    industries = session.execute(
-        select(IndustryModel).order_by(IndustryModel.id)
-    ).scalars().all()
+def list_industries(
+    id: int | None = None,
+    name: str | None = None,
+    session: Session = Depends(get_db),
+) -> list[Industry]:
+    """Return industries, optionally filtered by id or name."""
+    stmt = select(IndustryModel).order_by(IndustryModel.id)
+    if id is not None:
+        stmt = stmt.where(IndustryModel.id == id)
+    if name is not None:
+        stmt = stmt.where(IndustryModel.name == name)
+    industries = session.execute(stmt).scalars().all()
     return [_to_industry(i) for i in industries]
 
 

@@ -43,6 +43,24 @@ def test_list_companies_filters(client: TestClient) -> None:
     assert len(by_name) == 1 and by_name[0]["name"] == "Beta"
 
 
+def test_list_companies_by_industry_parent(client: TestClient) -> None:
+    sector = client.post("/industries", json={"name": "Sector", "code": "SECTOR"}).json()
+    child_a = client.post(
+        "/industries", json={"name": "Child A", "code": "CHILD_A", "parentId": sector["id"]}
+    ).json()
+    child_b = client.post(
+        "/industries", json={"name": "Child B", "code": "CHILD_B", "parentId": sector["id"]}
+    ).json()
+    client.post("/companies", json={"name": "Alpha", "industryId": child_a["id"]})
+    client.post("/companies", json={"name": "Beta", "industryId": child_b["id"]})
+
+    by_parent = client.get(f"/companies?industryParentId={sector['id']}").json()
+    assert {c["name"] for c in by_parent} == {"Alpha", "Beta"}
+
+    by_child = client.get(f"/companies?industryId={child_a['id']}").json()
+    assert len(by_child) == 1 and by_child[0]["name"] == "Alpha"
+
+
 def test_update_company(client: TestClient) -> None:
     industry = _create_industry(client)
     company = client.post("/companies", json={"name": "Yandex", "industryId": industry["id"]}).json()

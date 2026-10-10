@@ -18,11 +18,11 @@ Current endpoints:
 | Method | Path               | Description                                          |
 | ------ | ------------------ | ---------------------------------------------------- |
 | POST   | `/financials`      | Upload IFRS financial data for a company (upsert).   |
-| GET    | `/industries`      | List industries.                                     |
+| GET    | `/industries`      | List industries (optional `?id=` and `?name=`).      |
 | POST   | `/industries`      | Create an industry.                                  |
 | PATCH  | `/industries/{id}` | Update an industry.                                  |
 | DELETE | `/industries/{id}` | Delete an industry.                                  |
-| GET    | `/companies`       | List companies (optional `?industryId=`).            |
+| GET    | `/companies`       | List companies (optional `?industryId=`, `?industryParentId=`, `?name=`). |
 | POST   | `/companies`       | Create a company.                                    |
 | PATCH  | `/companies/{id}`  | Update a company.                                    |
 | DELETE | `/companies/{id}`  | Delete a company.                                    |

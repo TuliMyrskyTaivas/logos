@@ -96,7 +96,18 @@ paths:
         - industries
       operationId: listIndustries
       summary: List industries
-      description: Returns all industries.
+      description: Returns industries, optionally filtered by id or name.
+      parameters:
+        - name: id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: List of industries.
@@ -214,9 +225,14 @@ paths:
         - companies
       operationId: listCompanies
       summary: List companies
-      description: Returns companies, optionally filtered by industry or name.
+      description: Returns companies, optionally filtered by industry, industry parent, or name.
       parameters:
         - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: industryParentId
           in: query
           required: false
           schema:

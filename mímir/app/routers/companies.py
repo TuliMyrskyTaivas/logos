@@ -34,13 +34,18 @@ def _to_company(company: CompanyModel) -> Company:
 @router.get("", response_model=list[Company])
 def list_companies(
     industryId: int | None = None,
+    industryParentId: int | None = None,
     name: str | None = None,
     session: Session = Depends(get_db),
 ) -> list[Company]:
-    """Return companies, optionally filtered by industry or name."""
+    """Return companies, optionally filtered by industry, industry parent, or name."""
     stmt = select(CompanyModel).order_by(CompanyModel.id)
     if industryId is not None:
         stmt = stmt.where(CompanyModel.industry_id == industryId)
+    if industryParentId is not None:
+        stmt = stmt.join(
+            IndustryModel, CompanyModel.industry_id == IndustryModel.id
+        ).where(IndustryModel.parent_id == industryParentId)
     if name is not None:
         stmt = stmt.where(CompanyModel.name == name)
     companies = session.execute(stmt).scalars().all()

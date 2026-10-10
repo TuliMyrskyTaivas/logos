@@ -13,6 +13,19 @@ def test_list_industries_seeded(client: TestClient) -> None:
     assert any(i["code"] == "FINANCE_BANKS" for i in industries)
 
 
+def test_list_industries_filters(client: TestClient) -> None:
+    a = client.post("/industries", json={"name": "Filter A", "code": "FILTER_A"}).json()
+    b = client.post("/industries", json={"name": "Filter B", "code": "FILTER_B"}).json()
+
+    by_id = client.get(f"/industries?id={a['id']}").json()
+    assert len(by_id) == 1 and by_id[0]["id"] == a["id"]
+
+    by_name = client.get("/industries", params={"name": "Filter B"}).json()
+    assert len(by_name) == 1 and by_name[0]["id"] == b["id"]
+
+    assert client.get("/industries", params={"name": "Filter Missing"}).json() == []
+
+
 def test_create_industry(client: TestClient) -> None:
     resp = client.post("/industries", json={"name": "Banks", "code": "BANKS"})
     assert resp.status_code == 201
