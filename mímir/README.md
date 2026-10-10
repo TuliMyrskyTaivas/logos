@@ -4,7 +4,10 @@ Mímir is the gateway service for the Logos database. It exposes financial
 analytics (IFRS statements, computed ratios, Beneish M-Score) and financial
 modeling results over an HTTP REST API.
 
-Authentication: mutual TLS (mTLS) using client X.509 certificates.
+Authentication: client X.509 certificates are verified by nginx on the host.
+The service receives the verified identity through HTTP headers forwarded by
+nginx: X-SSL-Client-Verify, X-SSL-Client-S-DN, X-SSL-Client-I-DN,
+X-SSL-Client-Serial, X-SSL-Client-Fingerprint, X-Client-CN, X-Client-Email.
 
 ## API
 
@@ -37,11 +40,11 @@ The request body mirrors the `add_financial_data` function in the root
 python -m venv .venv
 .venv\Scripts\Activate.ps1      # Windows
 pip install -r requirements.txt
-uvicorn app.main:app --reload   # without mTLS, for local development
+uvicorn app.main:app --reload   # for local development
 ```
 
-Run with mTLS (see `certs/README.md` and the `MIMIR_*` environment
-variables in `AGENTS.md`):
+Run the server directly (server TLS is enabled when
+`MIMIR_SERVER_CERT_FILE` and `MIMIR_SERVER_KEY_FILE` are set):
 
 ```bash
 python -m app.main

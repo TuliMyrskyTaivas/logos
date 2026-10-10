@@ -7,29 +7,55 @@ from urllib.parse import quote
 import numpy as np
 import pandas as pd
 
-from mimir_client import MIMIR_URL_DEFAULT, request as mimir_request
+from mimir_client import MIMIR_URL_DEFAULT, request as mimir_request, uses_https
 
-def get_company_id(mimir_url: str, company_name: str) -> Optional[int]:
+def get_company_id(
+    logger: logging.Logger,
+    mimir_url: str,
+    company_name: str,
+    cert_file: str | None = None,
+    key_file: str | None = None,
+) -> Optional[int]:
     """
     Retrieve the company ID for the given company name via the mímir service.
     Returns None if the company is not found.
     """
-    companies = mimir_request(mimir_url, "GET", f"/companies?name={quote(company_name)}")
+    companies = mimir_request(
+        mimir_url,
+        "GET",
+        f"/companies?name={quote(company_name)}",
+        logger=logger,
+        cert_file=cert_file,
+        key_file=key_file,
+    )
     return companies[0]["id"] if companies else None
 
 # ------------------------------------------------------------
 # Load historical data from the database and prepare it for modeling.
 # ------------------------------------------------------------
-def load_historical_data(logger: logging.Logger, mimir_url: str, company_name: str) -> Tuple[pd.DataFrame, List[int]]:
+def load_historical_data(
+    logger: logging.Logger,
+    mimir_url: str,
+    company_name: str,
+    cert_file: str | None = None,
+    key_file: str | None = None,
+) -> Tuple[pd.DataFrame, List[int]]:
     """
     Load data for the specified company via the mímir service.
     Returns a pivot table (years × metric codes) and an ordered list of years.
     """
-    company_id = get_company_id(mimir_url, company_name)
+    company_id = get_company_id(logger, mimir_url, company_name, cert_file, key_file)
     if not company_id:
         raise ValueError(f"Company '{company_name}' not found.")
 
-    financials = mimir_request(mimir_url, "GET", f"/companies/{company_id}/financials")
+    financials = mimir_request(
+        mimir_url,
+        "GET",
+        f"/companies/{company_id}/financials",
+        logger=logger,
+        cert_file=cert_file,
+        key_file=key_file,
+    )
     metrics: dict[str, dict[str, float | None]] = financials.get("metrics") or {}
     if not metrics:
         raise ValueError("No data found for the company.")
@@ -152,11 +178,25 @@ def breakeven_analysis(base: pd.Series) -> float:
     be_revenue = fixed_costs / (1 - variable_ratio)
     return be_revenue
 
-def play_scenario(logger: logging.Logger, mimir_url: str, scenarioId: int, base: pd.Series) -> pd.Series:
+def play_scenario(
+    logger: logging.Logger,
+    mimir_url: str,
+    scenarioId: int,
+    base: pd.Series,
+    cert_file: str | None = None,
+    key_file: str | None = None,
+) -> pd.Series:
     """
     Apply the specified scenario from the mímir service to the baseline forecast.
     """
-    variables = mimir_request(mimir_url, "GET", f"/scenarios/{scenarioId}/variables")
+    variables = mimir_request(
+        mimir_url,
+        "GET",
+        f"/scenarios/{scenarioId}/variables",
+        logger=logger,
+        cert_file=cert_file,
+        key_file=key_file,
+    )
 
     forecast = base.copy()
     # Revenue first, because scale_to_revenue depends on it
@@ -197,6 +237,8 @@ def play_scenarios(
     df: pd.DataFrame,
     last_year: int,
     forecast_year: int,
+    cert_file: str | None = None,
+    key_file: str | None = None,
 ) -> Dict[str, pd.Series]:
     """
     Returns a dictionary of scenarios, where keys are scenario names and values are forecasted metrics.
@@ -210,17 +252,33 @@ def play_scenarios(
     forecasts: Dict[str, pd.Series] = {}
     forecasts["base"] = recalculate_indicators(base)
 
-    scenarios = mimir_request(mimir_url, "GET", "/scenarios?isActive=true")
+    scenarios = mimir_request(
+        mimir_url,
+        "GET",
+        "/scenarios?isActive=true",
+        logger=logger,
+        cert_file=cert_file,
+        key_file=key_file,
+    )
     logger.info(f"{len(scenarios)} active scenarios loaded from the mímir service")
     for scenario in scenarios:
-        forecasts[scenario["code"]] = play_scenario(logger, mimir_url, scenario["id"], base)
+        forecasts[scenario["code"]] = play_scenario(
+            logger, mimir_url, scenario["id"], base, cert_file, key_file
+        )
 
     return forecasts
 
 # ------------------------------------------------------------
 # Main function to run the modeling and output results.
 # ------------------------------------------------------------
-def forecast_scenarios(logger: logging.Logger, mimir_url: str, company_name: str, year: Optional[int]) -> Tuple[pd.DataFrame, int]:
+def forecast_scenarios(
+    logger: logging.Logger,
+    mimir_url: str,
+    company_name: str,
+    year: Optional[int],
+    cert_file: str | None = None,
+    key_file: str | None = None,
+) -> Tuple[pd.DataFrame, int]:
     """
     Main entry point for the forecasting model.
     Returns a dataframe with scenarios, breakeven points, safety margins, critical drops, and required price increases.
@@ -228,7 +286,7 @@ def forecast_scenarios(logger: logging.Logger, mimir_url: str, company_name: str
     logger.info(f"Loading historical data for {company_name}")
 
     # Load historical data and generate scenarios
-    df, years = load_historical_data(logger, mimir_url, company_name)
+    df, years = load_historical_data(logger, mimir_url, company_name, cert_file, key_file)
     first_year = years[0]
     last_year = years[-1]
     if year is not None:
@@ -239,7 +297,7 @@ def forecast_scenarios(logger: logging.Logger, mimir_url: str, company_name: str
     if forecast_year <= first_year or forecast_year > last_year + 1:
         raise ValueError(f"Forecast year {forecast_year} is out of valid range ({first_year + 1} to {last_year + 1})")
 
-    scenarios = play_scenarios(logger, mimir_url, df, last_year, forecast_year)
+    scenarios = play_scenarios(logger, mimir_url, df, last_year, forecast_year, cert_file, key_file)
 
     # Calculate breakeven revenue for each scenario
     be : Dict[str, float] = {}
@@ -319,10 +377,12 @@ def save_simulation_results(
     company: str,
     forecast_year: int,
     forecast: pd.DataFrame,
+    cert_file: str | None = None,
+    key_file: str | None = None,
 ) -> None:
     """Save the scenario forecast results through the mímir service."""
     logger.debug(f"Saving {forecast_year} forecasts for {company} via mímir")
-    company_id = get_company_id(mimir_url, company)
+    company_id = get_company_id(logger, mimir_url, company, cert_file, key_file)
     if company_id is None:
         raise ValueError(f"Company '{company}' not found.")
 
@@ -355,6 +415,9 @@ def save_simulation_results(
         "PUT",
         f"/companies/{company_id}/forecasts",
         {"forecastYear": forecast_year, "scenarios": scenarios},
+        logger=logger,
+        cert_file=cert_file,
+        key_file=key_file,
     )
     logger.info(
         f"Saved forecasts via mímir: scenarios={result.get('scenarioCount')}, metrics={result.get('metricCount')}"
@@ -374,8 +437,22 @@ Usage examples:
     parser.add_argument('--dry-run', '-d', action='store_true', help='Run the model without saving results')
     parser.add_argument('--year', '-y', type=int, help='Forecast year (default: next year after last historical data)')
     parser.add_argument('--mimir-url', type=str, default=os.getenv('MIMIR_URL', MIMIR_URL_DEFAULT), help='Mímir service base URL')
+    parser.add_argument('--client-cert-file', type=str, default=None, help='Path to the client TLS certificate (PEM). Required when --mimir-url uses https.')
+    parser.add_argument('--client-key-file', type=str, default=None, help='Path to the client TLS private key (PEM). Required when --mimir-url uses https.')
     parser.add_argument('company_name', type=str, help='Name of the company to model')
     args = parser.parse_args()
+
+    if uses_https(args.mimir_url):
+        missing: list[str] = []
+        if not args.client_cert_file:
+            missing.append('--client-cert-file')
+        if not args.client_key_file:
+            missing.append('--client-key-file')
+        if missing:
+            parser.error(
+                'the following arguments are required when --mimir-url uses https: '
+                + ', '.join(missing)
+            )
 
     # Setup logging
     logger = logging.getLogger('performance_modeling')
@@ -394,11 +471,26 @@ Usage examples:
     logger.info("Starting financial modeling...")
 
     try:
-        result, forecast_year = forecast_scenarios(logger, args.mimir_url, args.company_name, year=args.year)
+        result, forecast_year = forecast_scenarios(
+            logger,
+            args.mimir_url,
+            args.company_name,
+            year=args.year,
+            cert_file=args.client_cert_file,
+            key_file=args.client_key_file,
+        )
         print(result)
         if not args.dry_run:
             logger.info("Saving simulation results via the mímir service...")
-            save_simulation_results(logger, args.mimir_url, args.company_name, forecast_year=forecast_year, forecast=result)
+            save_simulation_results(
+                logger,
+                args.mimir_url,
+                args.company_name,
+                forecast_year=forecast_year,
+                forecast=result,
+                cert_file=args.client_cert_file,
+                key_file=args.client_key_file,
+            )
             logger.info("Results saved successfully.")
     except Exception as e:
         import traceback

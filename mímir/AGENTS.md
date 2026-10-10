@@ -9,8 +9,11 @@ pandas rules apply).
 
 Mímir is a gateway to the Logos PostgreSQL database. It exposes financial
 analytics (IFRS statements, computed ratios, Beneish M-Score) and financial
-modeling results over an HTTP REST API. Authentication is performed with
-mutual TLS (mTLS) using client X.509 certificates.
+modeling results over an HTTP REST API. Client X.509 certificates are
+verified by nginx on the host, which forwards the client identity and the
+verification status to the service via HTTP headers (X-SSL-Client-Verify,
+X-SSL-Client-S-DN, X-SSL-Client-I-DN, X-SSL-Client-Serial,
+X-SSL-Client-Fingerprint, X-Client-CN, X-Client-Email).
 
 The API is designed contract-first: `api/openapi.yaml` is the source of
 truth. Request/response schemas in `app/schemas.py` must stay in sync with
@@ -37,7 +40,7 @@ mímir/
 ├── api/openapi.yaml        # OpenAPI 3.2 spec (source of truth)
 ├── app/
 │   ├── main.py             # FastAPI application and uvicorn entry point
-│   ├── config.py           # settings (env vars, mTLS paths, DB connection)
+│   ├── config.py           # settings (env vars, server TLS, DB connection)
 │   ├── database.py         # SQLAlchemy engine / session factory
 │   ├── schemas.py          # pydantic request/response models
 │   └── routers/
@@ -60,6 +63,9 @@ mímir/
   `add_financial_data`). Reuse the root `models.py`; do not redefine models.
 - Follow the root `AGENTS.md` NumPy 2.x / pandas 3.x API rules when
   converting request payloads to `pd.Series` / `pd.DataFrame`.
+- Annotate all function parameters and variables with type hints (including
+  test fixtures such as `caplog: pytest.LogCaptureFixture`) to minimize
+  Pylance warnings.
 
 ## Environment variables
 
@@ -72,7 +78,6 @@ mímir/
 - `MIMIR_PORT` — port to bind (default `8443`).
 - `MIMIR_SERVER_CERT_FILE` — server TLS certificate (PEM).
 - `MIMIR_SERVER_KEY_FILE` — server TLS private key (PEM).
-- `MIMIR_CLIENT_CA_FILE` — CA bundle used to verify client certificates.
 
 ## Testing
 

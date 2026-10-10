@@ -18,10 +18,10 @@ class Settings(BaseSettings):
     db_user: str = "logos_user"
     db_password: str = "postgres"
 
-    # mTLS: server certificate/key and the CA that signs client certificates.
+    # Server TLS certificate/key. Client certificates are verified by nginx,
+    # which forwards the client identity to the service via HTTP headers.
     server_cert_file: str | None = None
     server_key_file: str | None = None
-    client_ca_file: str | None = None
 
     model_config = SettingsConfigDict(
         env_prefix="MIMIR_",

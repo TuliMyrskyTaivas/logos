@@ -8,12 +8,13 @@ info:
     financial analytics (IFRS statements and ratios) and financial
     modeling results over an HTTP REST API.
 
-    Authentication is performed with mutual TLS (mTLS): clients present an
-    X.509 certificate signed by the service's trusted CA.
+    Client X.509 certificates are verified by nginx on the host. The service
+    identifies callers from the HTTP headers forwarded by nginx
+    (X-SSL-Client-Verify, X-SSL-Client-S-DN, X-SSL-Client-I-DN,
+    X-SSL-Client-Serial, X-SSL-Client-Fingerprint, X-Client-CN,
+    X-Client-Email).
 servers:
   - url: https://localhost:8443
-security:
-  - clientCertificate: []
 tags:
   - name: financials
     description: IFRS financial statements and ratios
@@ -448,12 +449,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 components:
-  securitySchemes:
-    clientCertificate:
-      type: mutualTLS
-      description: |
-        Mutual TLS authentication. The client presents an X.509 certificate
-        that must be signed by the CA configured on the server.
   schemas:
     FinancialDataUpload:
       type: object

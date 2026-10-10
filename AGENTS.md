@@ -58,6 +58,10 @@ bullion and investment coin quotes over HTTP:
 - Read `README.md` and relevant source files before making changes.
 - Keep changes minimal and focused; do not refactor unrelated code.
 - Preserve existing code style, naming conventions, and type hints.
+- Annotate function parameters, return types, and variables with type hints.
+  Annotate empty collections explicitly (e.g. `items: list[str] = []`), since
+  their element type cannot be inferred and Pylance would otherwise report
+  partially-unknown types.
 - Do not modify generated files (e.g. `logos.erm.json`,
   `logos.erm.layout.json`) by hand.
 - Do not commit secrets, credentials, or `.env` files.

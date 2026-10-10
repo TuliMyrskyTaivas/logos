@@ -1,14 +1,14 @@
 # Certificates
 
-This directory holds the X.509 material used for mutual TLS. It is
-intentionally empty in the repository — real certificates and private keys
-must never be committed.
+This directory holds the X.509 material used for TLS. Client certificates
+are verified by nginx on the host. The directory is intentionally empty in
+the repository — real certificates and private keys must never be committed.
 
 Expected files:
 
 | File         | Purpose                                                          |
 | ------------ | ---------------------------------------------------------------- |
-| `ca.crt`     | CA that signs client certificates (trusted by the server).       |
+| `ca.crt`     | CA that signs client certificates (trusted by nginx).       |
 | `server.crt` | Server TLS certificate (CN/SAN = service hostname).              |
 | `server.key` | Server TLS private key (keep secret).                            |
 | `client.crt` | Example client certificate signed by `ca.crt`.                   |

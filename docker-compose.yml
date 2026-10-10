@@ -10,11 +10,12 @@ services:
       - ./data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
 
   mimir:
+    image: registry.ice-castle.ru/mimir:latest
     build:
       context: .
       dockerfile: "mímir/Dockerfile"
@@ -35,10 +36,10 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
       IMPORTER_PASSWORD: "${IMPORTER_PASSWORD}"
       ANALYST_PASSWORD: "${ANALYST_PASSWORD}"
-      # mTLS — enable and mount certs when available:
-      MIMIR_SERVER_CERT_FILE: "/certs/mimir_cert.crt"
-      MIMIR_SERVER_KEY_FILE: "/certs/mimir_key.crt"
-      # MIMIR_CLIENT_CA_FILE: "/certs/ca.crt"
+      # Server TLS is enabled when MIMIR_SERVER_CERT_FILE and MIMIR_SERVER_KEY_FILE are set.
+      # Client certificates are verified by nginx on the host.
+      # MIMIR_SERVER_CERT_FILE: "/certs/mimir_cert.crt"
+      # MIMIR_SERVER_KEY_FILE: "/certs/mimir_key.crt"
     ports:
       - '8443:8443'
     volumes:

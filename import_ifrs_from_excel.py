@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from ratios import Ratios
-from mimir_client import MIMIR_URL_DEFAULT, request as mimir_request
+from mimir_client import MIMIR_URL_DEFAULT, request as mimir_request, uses_https
 
 def is_year(value : Any) -> bool:
     """
@@ -702,8 +702,22 @@ Usage examples:
     parser.add_argument('--industry', '-i', type=str, help='Industry name', default=None)
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output with detailed information about the analysis process')
     parser.add_argument('--mimir-url', type=str, default=os.getenv('MIMIR_URL', MIMIR_URL_DEFAULT), help='Mímir service base URL')
+    parser.add_argument('--client-cert-file', type=str, default=None, help='Path to the client TLS certificate (PEM). Required when --mimir-url uses https.')
+    parser.add_argument('--client-key-file', type=str, default=None, help='Path to the client TLS private key (PEM). Required when --mimir-url uses https.')
 
     args = parser.parse_args()
+
+    if uses_https(args.mimir_url):
+        missing: list[str] = []
+        if not args.client_cert_file:
+            missing.append('--client-cert-file')
+        if not args.client_key_file:
+            missing.append('--client-key-file')
+        if missing:
+            parser.error(
+                'the following arguments are required when --mimir-url uses https: '
+                + ', '.join(missing)
+            )
 
     # Setup logging
     logger = logging.getLogger('import_ifrs')
@@ -752,7 +766,15 @@ Usage examples:
                 metrics_data,
                 ratios,
             )
-            result = mimir_request(args.mimir_url, "POST", "/financials", payload)
+            result = mimir_request(
+                args.mimir_url,
+                "POST",
+                "/financials",
+                payload,
+                logger=logger,
+                cert_file=args.client_cert_file,
+                key_file=args.client_key_file,
+            )
             logger.info(
                 "data sent to mímir: companyId=%s, metricCount=%s, ratioCount=%s",
                 result.get("companyId"),
