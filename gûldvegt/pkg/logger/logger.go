@@ -12,8 +12,7 @@ func SetupLogger() *slog.Logger {
 	var log *slog.Logger
 	var logOptions slog.HandlerOptions
 
-	logLevel := os.Getenv("LOGOS_LOG_LEVEL")
-	switch logLevel {
+	switch os.Getenv("LOG_LEVEL") {
 	case "debug":
 		logOptions.Level = slog.LevelDebug
 	case "info":

@@ -39,17 +39,18 @@ To check the whole module:
 
 - `BEARER_KEY` — **required**. HMAC signing key used to verify JWTs. The
   server refuses to start if it is unset or empty.
-- `LOGOS_DEBUG_LEVEL` — optional. Log level: `debug`, `info`, `warning`,
-  `error`. Defaults to `info`.
+- `LOG_LEVEL` — optional. Log level: `error`, `info`, `debug`, `warning`.
+  Defaults to `info`.
 
 ## Project structure
 
 ```
 gûldvegt/
 ├── api/openapi.yaml             # OpenAPI 3.2 spec (source of truth)
+├── certs/                       # Минцифры root CA certificates merged into the image CA bundle
 ├── cmd/api/main.go              # echo server entry point
 ├── internal/api/                # service implementation (route handlers)
-├── internal/client/             # upstream quote providers (Sberbank)
+├── internal/client/             # upstream quote providers (Sberbank, Zolotoy Zapas, Zoloto MD, VTB)
 ├── internal/generated/openapi/  # oapi-codegen generated code (DO NOT EDIT)
 ├── pkg/auth/                    # JWT bearer authentication middleware
 ├── pkg/logger/                  # slog logger setup

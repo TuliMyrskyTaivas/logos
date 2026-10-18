@@ -1,9 +1,10 @@
 ARG GOLANG_VERSION=1.27
-ARG GOLANGCI_LINT_VERSION=2.13.0
+ARG GOLANGCI_LINT_VERSION=2.15.0
 
 # Lint stage
 FROM golang:${GOLANG_VERSION} AS go-lint-stage
-RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1
+ARG GOLANGCI_LINT_VERSION
+RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}
 WORKDIR /app
 # Install Delve
 # RUN go install github.com/go-delve/delve/cmd/dlv@latest
@@ -32,9 +33,22 @@ FROM go-lint-stage AS go-test-stage
 WORKDIR /app
 RUN go test -coverprofile=coverage.out -v ./...
 
+# Assemble a CA bundle that extends the Debian system roots with the Russian
+# Ministry of Digital Development (Минцифры) certificates, so the service can
+# verify TLS certificates of Russian upstream providers.
+FROM debian:trixie-slim AS ca-bundle
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+# update-ca-certificates only picks up files with the .crt extension.
+COPY certs/*.crt /usr/local/share/ca-certificates/mincifry/
+RUN update-ca-certificates
+
 # Deploy the service into a separate lean image
 FROM gcr.io/distroless/base-debian13 AS guldvegt-cmd
 WORKDIR /
+# Replace the distroless CA bundle with the one that also trusts Минцифры roots.
+COPY --from=ca-bundle /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=go-build-stage /guldvegt /guldvegt
 #COPY --from=go-lint-stage /go/bin/dlv /usr/local/bin/dlv
 EXPOSE 9080

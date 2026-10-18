@@ -29,6 +29,7 @@ func NewService(log *slog.Logger) *Service {
 			client.NewSberCoinsClient(log),
 			client.NewZolotoyZapasCoinsClient(log),
 			client.NewZolotoMDCoinsClient(log),
+			client.NewVTBCoinsClient(log),
 		},
 		log: log,
 	}

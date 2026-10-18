@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,14 +20,9 @@ type SberBullionsClient struct {
 
 // NewSberBullionsClient returns a client for Sberbank bullion quotes.
 func NewSberBullionsClient(log *slog.Logger) *SberBullionsClient {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	// certificate verification is disabled for sberbank.ru.
-	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
-
 	return &SberBullionsClient{
 		httpClient: &http.Client{
-			Transport: transport,
-			Timeout:   30 * time.Second,
+			Timeout: 30 * time.Second,
 		},
 		log: log,
 	}
