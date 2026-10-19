@@ -16,7 +16,7 @@ import (
 
 // Service implements the generated openapi.ServerInterface.
 type Service struct {
-	bullions client.ClientInterface
+	bullions []client.ClientInterface
 	coins    []client.CoinsClientInterface
 	log      *slog.Logger
 }
@@ -24,7 +24,10 @@ type Service struct {
 // NewService returns a new Service.
 func NewService(log *slog.Logger) *Service {
 	return &Service{
-		bullions: client.NewSberBullionsClient(log),
+		bullions: []client.ClientInterface{
+			client.NewSberBullionsClient(log),
+			client.NewVTBBullionsClient(log),
+		},
 		coins: []client.CoinsClientInterface{
 			client.NewSberCoinsClient(log),
 			client.NewZolotoyZapasCoinsClient(log),
@@ -40,32 +43,49 @@ var _ openapi.ServerInterface = (*Service)(nil)
 
 // GetBullionQuotes returns a list of precious metals bullion quotes.
 func (s *Service) GetBullionQuotes(ctx *echo.Context) error {
-	info, err := s.bullions.GetQuotesInfo(ctx.Request().Context())
-	if err != nil {
-		metrics.IncBullionsFailed()
-		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	type result struct {
+		info *client.QuotesInfo
+		err  error
 	}
 
-	weights := make([]float32, 0, len(info.Quotes))
-	for weight := range info.Quotes {
-		weights = append(weights, weight)
+	results := make(chan result, len(s.bullions))
+	for _, bullionsClient := range s.bullions {
+		go func(c client.ClientInterface) {
+			info, err := c.GetQuotesInfo(ctx.Request().Context())
+			results <- result{info: info, err: err}
+		}(bullionsClient)
 	}
-	sort.Slice(weights, func(i, j int) bool { return weights[i] < weights[j] })
 
-	quotes := make([]openapi.BullionQuote, 0, len(weights))
-	for _, weight := range weights {
-		q := info.Quotes[weight]
-		quotes = append(quotes, openapi.BullionQuote{
-			Date:      openapi_types.Date{Time: info.ValidAt},
-			Vendor:    "Sberbank",
-			Metal:     openapi.Gold,
-			Weight:    weight,
-			BuyPrice:  q.BuyPrice,
-			SellPrice: q.SellPrice,
-			Spread:    q.Spread,
-			Currency:  openapi.BullionQuoteCurrencyRUB,
-		})
+	quotes := make([]openapi.BullionQuote, 0)
+	for range s.bullions {
+		res := <-results
+		if res.err != nil {
+			metrics.IncBullionsFailed()
+			return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": res.err.Error()})
+		}
+		if res.info == nil {
+			continue
+		}
+		for weight, q := range res.info.Quotes {
+			quotes = append(quotes, openapi.BullionQuote{
+				Date:      openapi_types.Date{Time: res.info.ValidAt},
+				Vendor:    res.info.Vendor,
+				Metal:     openapi.Gold,
+				Weight:    weight,
+				BuyPrice:  q.BuyPrice,
+				SellPrice: q.SellPrice,
+				Spread:    q.Spread,
+				Currency:  openapi.BullionQuoteCurrencyRUB,
+			})
+		}
 	}
+
+	sort.SliceStable(quotes, func(i, j int) bool {
+		if quotes[i].Vendor != quotes[j].Vendor {
+			return quotes[i].Vendor < quotes[j].Vendor
+		}
+		return quotes[i].Weight < quotes[j].Weight
+	})
 
 	metrics.IncBullionsSuccess()
 	return ctx.JSON(http.StatusOK, quotes)

@@ -196,5 +196,6 @@ func (c *SberBullionsClient) GetQuotesInfo(ctx context.Context) (*QuotesInfo, er
 	return &QuotesInfo{
 		Quotes:  quotes,
 		ValidAt: time.UnixMilli(latestTs),
+		Vendor:  "Sberbank",
 	}, nil
 }

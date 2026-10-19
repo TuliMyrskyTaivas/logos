@@ -18,6 +18,7 @@ type Quotes map[float32]Quote
 type QuotesInfo struct {
 	Quotes  Quotes
 	ValidAt time.Time
+	Vendor  string
 }
 
 type ClientInterface interface {
