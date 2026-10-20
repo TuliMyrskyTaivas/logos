@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -31,9 +33,9 @@ func BearerAuth(key []byte) echo.MiddlewareFunc {
 			token, ok := strings.CutPrefix(header, bearerScheme)
 
 			if !ok || token == "" {
-				log.Info("authorization failure", slog.String("reason", "missing bearer token"))
 				metrics.IncAuthMissingToken()
-				return echo.NewHTTPError(http.StatusUnauthorized, "authorization failure")
+				return echo.NewHTTPError(http.StatusUnauthorized, "authorization failure").
+					Wrap(errors.New("missing bearer token"))
 			}
 
 			claims := &tokenClaims{}
@@ -44,18 +46,14 @@ func BearerAuth(key []byte) echo.MiddlewareFunc {
 				jwt.WithExpirationRequired(),
 			)
 			if err != nil {
-				log.Info("authorization failure", slog.String("reason", "invalid token"), slog.String("error", err.Error()))
 				metrics.IncAuthInvalidToken()
-				return echo.NewHTTPError(http.StatusUnauthorized, "authorization failure")
+				return echo.NewHTTPError(http.StatusUnauthorized, "authorization failure").
+					Wrap(fmt.Errorf("invalid token: %w", err))
 			}
 
 			if claims.Role != "reader" {
-				log.Info("authorization failure",
-					slog.String("reason", "role not allowed"),
-					slog.String("name", claims.Name),
-					slog.String("role", claims.Role),
-				)
-				return echo.NewHTTPError(http.StatusForbidden, "authorization failure")
+				return echo.NewHTTPError(http.StatusForbidden, "authorization failure").
+					Wrap(fmt.Errorf("role not allowed: name=%q role=%q", claims.Name, claims.Role))
 			}
 
 			log.Debug("request authorized", slog.String("name", claims.Name), slog.String("role", claims.Role))

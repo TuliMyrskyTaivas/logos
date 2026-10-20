@@ -46,10 +46,19 @@ var (
 		},
 		[]string{"reason"},
 	)
+
+	providerErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "guldvegt",
+			Name:      "provider_errors_total",
+			Help:      "Number of failed requests to a single upstream quote provider.",
+		},
+		[]string{"endpoint", "provider"},
+	)
 )
 
 func init() {
-	prometheus.MustRegister(requestsSuccess, requestsFailed, authFailed)
+	prometheus.MustRegister(requestsSuccess, requestsFailed, authFailed, providerErrors)
 }
 
 // IncCoinsSuccess increments the counter of successfully processed coin requests.
@@ -63,6 +72,18 @@ func IncBullionsSuccess() { requestsSuccess.WithLabelValues(endpointBullions).In
 
 // IncBullionsFailed increments the counter of failed bullion requests.
 func IncBullionsFailed() { requestsFailed.WithLabelValues(endpointBullions).Inc() }
+
+// IncCoinsProviderError increments the counter of failed requests to a single
+// upstream coin quotes provider.
+func IncCoinsProviderError(provider string) {
+	providerErrors.WithLabelValues(endpointCoins, provider).Inc()
+}
+
+// IncBullionsProviderError increments the counter of failed requests to a
+// single upstream bullion quotes provider.
+func IncBullionsProviderError(provider string) {
+	providerErrors.WithLabelValues(endpointBullions, provider).Inc()
+}
 
 // IncAuthMissingToken increments the counter of requests rejected due to a missing token.
 func IncAuthMissingToken() { authFailed.WithLabelValues(authReasonMissingToken).Inc() }

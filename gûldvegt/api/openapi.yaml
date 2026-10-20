@@ -39,6 +39,14 @@ paths:
                   sellPrice: 660000
                   spread: 1.52
                   currency: RUB
+        "503":
+          description: >-
+            Service unavailable: none of the quote providers returned any
+            bullion quote.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /quotes/coins:
     get:
       operationId: getCoinQuotes
@@ -62,8 +70,26 @@ paths:
                   sellPrice: 52000
                   spread: 3.85
                   currency: RUB
+        "503":
+          description: >-
+            Service unavailable: none of the quote providers returned any coin
+            quote.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
+    Error:
+      type: object
+      description: An error returned when quotes could not be served.
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable failure reason.
+          example: no coin quotes received from providers
     BullionQuote:
       type: object
       description: A quote for a precious metals bullion bar.

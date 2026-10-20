@@ -53,7 +53,7 @@ gûldvegt/
 ├── internal/client/             # upstream quote providers (Sberbank, Zolotoy Zapas, Zoloto MD, VTB)
 ├── internal/generated/openapi/  # oapi-codegen generated code (DO NOT EDIT)
 ├── pkg/auth/                    # JWT bearer authentication middleware
-├── pkg/logger/                  # slog logger setup
+├── pkg/logger/                  # slog logger setup and request logging middleware
 ├── codegen-server.yaml          # oapi-codegen config (echo server)
 ├── codegen-types.yaml           # oapi-codegen config (models)
 └── go.mod
@@ -71,9 +71,33 @@ gûldvegt/
 
 - Uses `log/slog` via `pkg/logger.SetupLogger()`.
 - Echo v5 has native slog support: assign the logger to `server.Logger` and
-  use `middleware.RequestLogger()` for request logging.
+  register `logger.RequestLogger()` with `server.Pre` for request logging
+  (registered as pre-middleware so that requests rejected before routing,
+  e.g. 404/405, are logged too).
+- Requests answered with `200 OK` are logged at info level (`REQUEST`).
+  Every response with any other status code is logged at error level
+  (`REQUEST_ERROR`) together with the reason of the failure in the `reason`
+  attribute.
 - Successful authorization logs the user name at debug level; authorization
-  failures are logged at info level.
+  failures return 401/403 with a generic message and the specific reason is
+  recorded by the request logger at error level.
+- Handlers write the error body themselves and return the underlying error,
+  so the request logger records the actual failure reason.
+
+## Upstream providers
+
+- Both quote endpoints aggregate data from several upstream providers that
+  are queried concurrently.
+- A failed provider is logged at error level (`provider request failed` with
+  `endpoint`, `provider` and `error` attributes) and increments
+  `guldvegt_provider_errors_total{endpoint, provider}`. It does not fail the
+  whole request.
+- The response is `200 OK` with the quotes returned by the providers that
+  succeeded. `503 Service Unavailable` is returned only when no provider
+  delivered any quote; such a request also increments
+  `guldvegt_requests_failed_total{endpoint}`.
+- Quote providers are registered with a lowercase identifier used in logs and
+  metrics (`sberbank`, `vtb`, `zolotoy_zapas`, `zoloto_md`).
 
 ## Generated code
 

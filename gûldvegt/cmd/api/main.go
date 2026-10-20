@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
 
 	"github.com/TuliMyrskyTaivas/guldvegt/internal/api"
 	"github.com/TuliMyrskyTaivas/guldvegt/internal/generated/openapi"
@@ -63,7 +62,7 @@ func startService(ctx context.Context, wg *sync.WaitGroup, cancel context.Cancel
 
 	server := echo.New()
 	server.Logger = log
-	server.Use(middleware.RequestLogger())
+	server.Pre(logger.RequestLogger())
 	server.Use(auth.BearerAuth([]byte(bearer)))
 
 	service := api.NewService(log)
