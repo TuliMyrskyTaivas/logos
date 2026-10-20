@@ -20,7 +20,23 @@ import (
 	"github.com/TuliMyrskyTaivas/guldvegt/pkg/logger"
 )
 
-const shutdownTimeout = 10 * time.Second
+const (
+	shutdownTimeout = 10 * time.Second
+
+	// serviceAddr is the address the quotes API listens on.
+	serviceAddr = ":9080"
+
+	// healthcheckCommand is the first command line argument that runs a
+	// one-shot health probe. It is used by the container HEALTHCHECK, because
+	// the runtime image contains neither a shell nor an HTTP client.
+	healthcheckCommand = "healthcheck"
+
+	// healthcheckURL is the endpoint probed by healthcheckCommand.
+	healthcheckURL = "http://127.0.0.1" + serviceAddr + api.HealthPath
+
+	// healthcheckTimeout bounds a single health probe.
+	healthcheckTimeout = 3 * time.Second
+)
 
 func startMetrics(ctx context.Context, wg *sync.WaitGroup, cancel context.CancelFunc, log *slog.Logger, url string) {
 	defer wg.Done()
@@ -62,15 +78,16 @@ func startService(ctx context.Context, wg *sync.WaitGroup, cancel context.Cancel
 
 	server := echo.New()
 	server.Logger = log
-	server.Pre(logger.RequestLogger())
-	server.Use(auth.BearerAuth([]byte(bearer)))
+	server.Pre(logger.RequestLogger(api.HealthPath))
+	server.Use(auth.BearerAuth([]byte(bearer), api.HealthPath))
 
 	service := api.NewService(log)
+	server.GET(api.HealthPath, api.Health)
 	openapi.RegisterHandlers(server, service)
 
-	log.Info("server listening", slog.String("address", ":9080"))
+	log.Info("server listening", slog.String("address", serviceAddr))
 	startErr := echo.StartConfig{
-		Address:         ":9080",
+		Address:         serviceAddr,
 		HideBanner:      true,
 		HidePort:        true,
 		GracefulTimeout: shutdownTimeout,
@@ -81,7 +98,27 @@ func startService(ctx context.Context, wg *sync.WaitGroup, cancel context.Cancel
 	}
 }
 
+// runHealthcheck probes the health endpoint of the running service and returns
+// the process exit code: 0 when the service is healthy, 1 otherwise.
+func runHealthcheck() int {
+	client := &http.Client{Timeout: healthcheckTimeout}
+	resp, err := client.Get(healthcheckURL)
+	if err != nil {
+		return 1
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return 1
+	}
+	return 0
+}
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == healthcheckCommand {
+		os.Exit(runHealthcheck())
+	}
+
 	log := logger.SetupLogger()
 
 	key := os.Getenv("BEARER_KEY")

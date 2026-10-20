@@ -24,9 +24,20 @@ type tokenClaims struct {
 
 // bearerAuth returns middleware that validates an HMAC-signed JWT in the
 // Authorization header. Only unexpired tokens with role "reader" are accepted.
-func BearerAuth(key []byte) echo.MiddlewareFunc {
+// Requests to the given public paths are passed through without
+// authentication, e.g. the health endpoint used by container probes.
+func BearerAuth(key []byte, publicPaths ...string) echo.MiddlewareFunc {
+	public := make(map[string]struct{}, len(publicPaths))
+	for _, path := range publicPaths {
+		public[path] = struct{}{}
+	}
+
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
+			if _, ok := public[c.Request().URL.Path]; ok {
+				return next(c)
+			}
+
 			log := c.Logger()
 
 			header := c.Request().Header.Get(echo.HeaderAuthorization)

@@ -39,6 +39,9 @@ To check the whole module:
 
 - `BEARER_KEY` — **required**. HMAC signing key used to verify JWTs. The
   server refuses to start if it is unset or empty.
+- `METRICS_URL` — **required**. Listen address and path of the Prometheus
+  metrics server, e.g. `127.0.0.1:9081/metrics`. The server refuses to start
+  if it is unset.
 - `LOG_LEVEL` — optional. Log level: `error`, `info`, `debug`, `warning`.
   Defaults to `info`.
 
@@ -83,6 +86,20 @@ gûldvegt/
   recorded by the request logger at error level.
 - Handlers write the error body themselves and return the underlying error,
   so the request logger records the actual failure reason.
+
+## Health check
+
+- `GET /health` returns `200 OK` with `{"status":"ok"}`. It is not part of the
+  OpenAPI specification: the handler lives in `internal/api/health.go` and the
+  path is registered explicitly in `cmd/api/main.go`.
+- The path is passed to `auth.BearerAuth` as a public path and to
+  `logger.RequestLogger` as a skipped path, so probes require no token and do
+  not flood the request log.
+- The binary supports a `healthcheck` subcommand that probes
+  `http://127.0.0.1:9080/health` and exits with 0 (healthy) or 1. Both the
+  image `HEALTHCHECK` and the compose health check run
+  `/guldvegt healthcheck`, because the distroless runtime has no shell or
+  HTTP client.
 
 ## Upstream providers
 

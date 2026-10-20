@@ -192,3 +192,22 @@ func TestGetCoinQuotesEmptyResult(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}
 }
+
+// TestHealth checks the health endpoint response.
+func TestHealth(t *testing.T) {
+	ctx, rec := newTestContext(t)
+	if err := Health(ctx); err != nil {
+		t.Fatalf("Health() error = %v, want nil", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Errorf("status = %q, want %q", body["status"], "ok")
+	}
+}

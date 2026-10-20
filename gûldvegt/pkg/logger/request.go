@@ -11,12 +11,22 @@ import (
 
 // RequestLogger returns middleware that logs every handled request. Requests
 // answered with 200 OK are logged at info level; any other response is logged
-// at error level together with the reason of the failure.
+// at error level together with the reason of the failure. Requests to the
+// given paths are not logged, e.g. frequent container health probes.
 //
 // Register the middleware with Echo.Pre so that requests rejected before they
 // reach a handler (404, 405) are logged as well.
-func RequestLogger() echo.MiddlewareFunc {
+func RequestLogger(skipPaths ...string) echo.MiddlewareFunc {
+	skipped := make(map[string]struct{}, len(skipPaths))
+	for _, path := range skipPaths {
+		skipped[path] = struct{}{}
+	}
+
 	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		Skipper: func(c *echo.Context) bool {
+			_, ok := skipped[c.Request().URL.Path]
+			return ok
+		},
 		LogLatency:       true,
 		LogRemoteIP:      true,
 		LogHost:          true,

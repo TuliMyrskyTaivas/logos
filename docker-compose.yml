@@ -48,6 +48,28 @@ services:
       db:
         condition: service_healthy
 
+  guldvegt:
+    image: registry.ice-castle.ru/guldvegt:latest
+    build:
+      context: ./gûldvegt
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # HMAC key for bearer tokens; set GULDVEGT_BEARER_KEY in .env.
+      BEARER_KEY: "${GULDVEGT_BEARER_KEY}"
+      # Prometheus metrics are served on a separate, unpublished port.
+      METRICS_URL: "0.0.0.0:9081/metrics"
+    ports:
+      - '9080:9080'
+    # Same probe as the image HEALTHCHECK: the distroless runtime has no shell
+    # or curl, so the binary queries its own /health endpoint.
+    healthcheck:
+      test: ["CMD", "/guldvegt", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
 volumes:
   postgres_data:
     driver: local

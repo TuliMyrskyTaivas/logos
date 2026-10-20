@@ -52,5 +52,9 @@ COPY --from=ca-bundle /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certi
 COPY --from=go-build-stage /guldvegt /guldvegt
 #COPY --from=go-lint-stage /go/bin/dlv /usr/local/bin/dlv
 EXPOSE 9080
+# The distroless image has neither a shell nor an HTTP client, so the binary
+# probes its own /health endpoint via the healthcheck command.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD ["/guldvegt", "healthcheck"]
 USER nonroot:nonroot
 ENTRYPOINT [ "/guldvegt" ]
