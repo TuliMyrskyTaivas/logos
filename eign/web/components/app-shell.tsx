@@ -33,7 +33,7 @@ export function AppShell({
         </div>
       </header>
       <div className="pt-3">
-        <Nav />
+        <Nav role={user.role} />
       </div>
       <main className="flex-1 py-6">{children}</main>
       <footer className="border-t border-border pt-4 text-xs text-muted-foreground">

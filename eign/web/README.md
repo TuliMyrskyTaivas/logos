@@ -7,9 +7,10 @@ Next.js (App Router) frontend of the Eign portfolio service.
 | `/portfolio/summary` | valuation, allocation, performance and risk metrics, positions |
 | `/assets` | positions: table with sorting/search/class filter, create, edit, delete |
 | `/trades` | trade history with filters, register, correct and delete trades |
-| `/plan` | monthly trade plan: targets per position or class (money or units), progress from the month's trades, planned/executed/cancelled |
 | `/income` | income plan/fact per year: totals, execution to date, monthly chart, rows CRUD |
+| `/plan` | monthly trade plan: targets per position or class (money or units), progress from the month's trades, planned/executed/cancelled |
 | `/goals` | target value (currency or metal), target return vs annualised TWR, target vs actual allocation |
+| `/users` | **admin only**: accounts with role and status, create, promote/demote, deactivate and activate |
 
 `/` redirects to `/portfolio/summary`.
 
@@ -91,13 +92,15 @@ app/
 ├── trades/                 # trades page (+ loading, error)
 ├── plan/                   # trade plan page (+ loading, error); month via ?month=
 ├── income/                 # income page (+ loading, error); year via ?year=
-└── goals/                  # goals page (+ loading, error)
+├── goals/                  # goals page (+ loading, error)
+└── users/                  # users page (+ loading, error); admin only
 components/
 ├── assets/                 # table, form and view of positions
 ├── trades/                 # table, form and view of trades
 ├── plan/                   # plan table with progress bars, form and view
 ├── income/                 # table, form, view and plan-vs-fact chart
 ├── goals/                  # goal form and allocation comparison
+├── users/                  # accounts table and creation form
 ├── ui/                     # button, field, modal, card, table, alert
 ├── nav.tsx                 # section navigation
 └── ...                     # KPI cards, charts, positions table

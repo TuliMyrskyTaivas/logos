@@ -13,6 +13,7 @@ import {
   type PortfolioSummary,
   type Trade,
   type TradePlan,
+  type UserRecord,
 } from "./types";
 
 export type {
@@ -47,6 +48,8 @@ export type {
   TradePlanUpdate,
   TradeType,
   TradeUpdate,
+  UserRecord,
+  UserRole,
 } from "./types";
 export { ApiError, describeError, isAuthError } from "./types";
 
@@ -119,4 +122,8 @@ export function fetchGoals(identity: Identity): Promise<Goal> {
 
 export function fetchGoalProgress(identity: Identity): Promise<GoalProgress> {
   return request<GoalProgress>(identity, "/goals/progress");
+}
+
+export function fetchUsers(identity: Identity): Promise<UserRecord[]> {
+  return request<UserRecord[]>(identity, "/users");
 }

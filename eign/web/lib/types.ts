@@ -33,6 +33,8 @@ export type GoalAllocation = components["schemas"]["GoalAllocation"];
 export type GoalUpdate = components["schemas"]["GoalUpdate"];
 export type GoalProgress = components["schemas"]["GoalProgress"];
 export type GoalAllocationProgress = components["schemas"]["GoalAllocationProgress"];
+export type UserRecord = components["schemas"]["User"];
+export type UserRole = NonNullable<UserRecord["role"]>;
 
 export class ApiError extends Error {
   readonly status: number;
