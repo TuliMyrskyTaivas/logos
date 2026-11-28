@@ -5,6 +5,8 @@ import {
   type Asset,
   type AssetClassInfo,
   type CurrentUser,
+  type IncomePlanFact,
+  type IncomeSummary,
   type Performance,
   type PortfolioSummary,
   type Trade,
@@ -17,6 +19,12 @@ export type {
   AssetUnit,
   AssetUpdate,
   CurrentUser,
+  IncomeCreate,
+  IncomePlanFact,
+  IncomeSummary,
+  IncomeType,
+  IncomeUpdate,
+  MonthlyIncome,
   MonthlyPerformance,
   Performance,
   PortfolioClassSummary,
@@ -72,4 +80,18 @@ export function fetchAssets(identity: Identity): Promise<Asset[]> {
 
 export function fetchTrades(identity: Identity): Promise<Trade[]> {
   return request<Trade[]>(identity, "/trades");
+}
+
+export function fetchIncomeRows(
+  identity: Identity,
+  year: number,
+): Promise<IncomePlanFact[]> {
+  return request<IncomePlanFact[]>(identity, `/income?year=${year}`);
+}
+
+export function fetchIncomeSummary(
+  identity: Identity,
+  year: number,
+): Promise<IncomeSummary> {
+  return request<IncomeSummary>(identity, `/income/summary?year=${year}`);
 }

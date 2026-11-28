@@ -15,6 +15,12 @@ export type TradeCreate = components["schemas"]["TradeCreate"];
 export type TradeUpdate = components["schemas"]["TradeUpdate"];
 export type AssetCreate = components["schemas"]["AssetCreate"];
 export type AssetUpdate = components["schemas"]["AssetUpdate"];
+export type IncomePlanFact = components["schemas"]["IncomePlanFact"];
+export type IncomeSummary = components["schemas"]["IncomeSummary"];
+export type MonthlyIncome = components["schemas"]["MonthlyIncome"];
+export type IncomeType = NonNullable<IncomePlanFact["incomeType"]>;
+export type IncomeCreate = components["schemas"]["IncomeCreate"];
+export type IncomeUpdate = components["schemas"]["IncomeUpdate"];
 
 export class ApiError extends Error {
   readonly status: number;

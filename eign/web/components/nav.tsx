@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/portfolio/summary", label: "Summary" },
   { href: "/assets", label: "Positions" },
   { href: "/trades", label: "Trades" },
+  { href: "/income", label: "Income" },
 ] as const;
 
 export function Nav() {
