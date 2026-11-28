@@ -50,6 +50,10 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'user')", name="ck_users_role"),
+        CheckConstraint(
+            "risk_free_rate IS NULL OR (risk_free_rate >= -1 AND risk_free_rate <= 10)",
+            name="ck_users_risk_free_rate",
+        ),
         {"schema": SCHEMA},
     )
 
@@ -60,6 +64,8 @@ class User(Base):
     base_currency: Mapped[str] = mapped_column(
         CHAR(3), nullable=False, server_default=text("'RUB'")
     )
+    # Annual risk-free rate for Sharpe/Sortino; NULL keeps the service default.
+    risk_free_rate: Mapped[Decimal | None] = mapped_column(Numeric(6, 4), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

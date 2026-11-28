@@ -119,7 +119,12 @@ def get_portfolio_performance(
     session: Session = Depends(get_frontend_db),
 ) -> Performance:
     """Compute time- and money-weighted metrics from the stored snapshots."""
-    risk_free = riskFreeRate if riskFreeRate is not None else settings.risk_free_rate
+    if riskFreeRate is not None:
+        risk_free = riskFreeRate
+    elif user.risk_free_rate is not None:
+        risk_free = float(user.risk_free_rate)
+    else:
+        risk_free = settings.risk_free_rate
     base_currency = (user.base_currency or "RUB").strip().upper()
     result = load_performance(
         session,

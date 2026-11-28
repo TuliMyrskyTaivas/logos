@@ -43,7 +43,14 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update own settings
+         * @description Change the caller's base currency and risk-free rate.
+         *
+         *     Both fields are optional; an explicit `null` risk-free rate restores the
+         *     service-wide default.
+         */
+        patch: operations["update_own_settings_auth_me_patch"];
         trace?: never;
     };
     "/users": {
@@ -1731,6 +1738,11 @@ export interface components {
              */
             baseCurrency: string;
             /**
+             * Riskfreerate
+             * @description Annual risk-free rate used by Sharpe/Sortino, or null to use the service default.
+             */
+            riskFreeRate?: number | null;
+            /**
              * Lastloginat
              * @description Last successful sign-in, or null.
              */
@@ -1753,6 +1765,22 @@ export interface components {
              * @enum {string}
              */
             role: "admin" | "user";
+        };
+        /**
+         * UserSettingsUpdate
+         * @description Payload for changing the caller's own portfolio settings.
+         */
+        UserSettingsUpdate: {
+            /**
+             * Basecurrency
+             * @description New base currency of the portfolio (fiat or metal code).
+             */
+            baseCurrency?: string | null;
+            /**
+             * Riskfreerate
+             * @description Annual risk-free rate; null restores the service default.
+             */
+            riskFreeRate?: number | null;
         };
         /**
          * UserUpdate
@@ -1887,6 +1915,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+        };
+    };
+    update_own_settings_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -181,6 +181,7 @@ as unpriced instead of silently valued at zero.
 | Method | Path | Description |
 |---|---|---|
 | GET | `/auth/me` | current user (created as admin on the very first request) |
+| PATCH | `/auth/me` | own settings: base currency and risk-free rate |
 | GET/POST | `/users`, PATCH/DELETE `/users/{id}` | user management (admin only) |
 | GET | `/asset-classes` | asset class dictionary |
 | GET/POST | `/assets`, GET/PATCH/DELETE `/assets/{id}` | positions |
@@ -223,8 +224,9 @@ history, registration and corrections with position recalculation), `/plan`
 (monthly trade plan with progress from the month's trades), `/income` (income
 plan/fact per year with execution to date) and `/goals` (target value in a
 currency or grams of metal, target return and target allocation). Administrators
-additionally get `/users` to create accounts and manage roles. The root `/`
-redirects to the summary.
+additionally get `/users` to create accounts and manage roles, and everyone gets
+`/settings` for the base currency and risk-free rate of their own portfolio. The
+root `/` redirects to the summary.
 
 - Server components call the API at `EIGN_API_URL` and forward the identity
   headers set by nginx (`X-Client-CN` / `X-SSL-Client-Verify`). Mutations and
@@ -316,7 +318,8 @@ login was never created) or the user is deactivated.
 
 Other settings: `EIGN_DB_HOST`/`EIGN_DB_PORT`/`EIGN_DB_NAME`, `EIGN_TZ`,
 `EIGN_GULDVEGT_URL`, `EIGN_MOEX_URL`, `EIGN_CBR_URL`,
-`EIGN_MARKETDATA_TIMEOUT`, `EIGN_RISK_FREE_RATE`.
+`EIGN_MARKETDATA_TIMEOUT`, `EIGN_RISK_FREE_RATE` (the default Sharpe/Sortino
+rate; each user can override it on the Settings page).
 
 #### Frontend
 

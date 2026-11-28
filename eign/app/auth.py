@@ -31,6 +31,9 @@ def to_api_user(user: UserModel) -> User:
         role=cast(UserRole, user.role),
         isActive=user.is_active,
         baseCurrency=user.base_currency,
+        riskFreeRate=(
+            float(user.risk_free_rate) if user.risk_free_rate is not None else None
+        ),
         lastLoginAt=user.last_login_at,
     )
 

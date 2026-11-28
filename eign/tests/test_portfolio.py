@@ -148,3 +148,26 @@ def test_class_weights_and_aggregation(
     assert by_class["EQUITY"]["weight"] == 0.75
     assert by_class["CASH"]["value"] == 1000.0
     assert by_class["CASH"]["weight"] == 0.25
+
+
+def test_metal_base_currency_converts_the_portfolio(
+    client: TestClient, admin: dict[str, str], asset_factory: Callable[..., dict[str, Any]]
+) -> None:
+    """A base currency in grams of gold must use the metal quote, not only CBR."""
+    asset_factory(name="SBER", quantity=100, currentPrice=400)
+    rate = client.post(
+        "/prices",
+        headers=admin,
+        json={"instrument": "XAU", "instrumentType": "metal", "price": 8000},
+    )
+    assert rate.status_code == 201
+
+    updated = client.patch("/auth/me", headers=admin, json={"baseCurrency": "XAU"})
+    assert updated.status_code == 200
+    assert updated.json()["baseCurrency"] == "XAU"
+
+    summary = _summary(client, admin)
+    assert summary["baseCurrency"] == "XAU"
+    assert summary["unpricedCount"] == 0
+    assert summary["totalValue"] == 5.0
+    assert summary["positions"][0]["valueBase"] == 5.0

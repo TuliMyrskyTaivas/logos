@@ -77,6 +77,31 @@ def test_performance_filters_by_date(
     assert body["initialValue"] == 1100.0
 
 
+def test_risk_free_rate_precedence(
+    client: TestClient, admin: dict[str, str], db_session: Session
+) -> None:
+    """Query parameter → own setting → service default."""
+    client.get("/auth/me", headers=admin)
+    _add_snapshot(db_session, "alice", date(2026, 1, 1), "1000")
+    _add_snapshot(db_session, "alice", date(2026, 2, 1), "1100")
+    _add_snapshot(db_session, "alice", date(2026, 3, 1), "1200")
+    _add_snapshot(db_session, "alice", date(2026, 4, 1), "1300")
+
+    own_zero = client.patch("/auth/me", headers=admin, json={"riskFreeRate": 0.0})
+    assert own_zero.status_code == 200
+    sharpe_at_zero = _performance(client, admin)["sharpe"]
+    assert sharpe_at_zero is not None
+
+    client.patch("/auth/me", headers=admin, json={"riskFreeRate": 0.5})
+    sharpe_with_setting = _performance(client, admin)["sharpe"]
+    assert sharpe_with_setting is not None
+    assert sharpe_with_setting < sharpe_at_zero
+
+    # The query parameter still overrides the stored preference.
+    sharpe_with_param = _performance(client, admin, riskFreeRate=0.0)["sharpe"]
+    assert sharpe_with_param == sharpe_at_zero
+
+
 def test_performance_counts_trades_as_capital_flows(
     client: TestClient,
     admin: dict[str, str],

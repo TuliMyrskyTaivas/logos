@@ -17,6 +17,7 @@ const LINKS: readonly NavLink[] = [
   { href: "/plan", label: "Plan" },
   { href: "/goals", label: "Goals" },
   { href: "/users", label: "Users", adminOnly: true },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function Nav({ role }: { role: UserRole }) {

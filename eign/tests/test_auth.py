@@ -86,3 +86,42 @@ def test_last_login_is_refreshed_at_most_once_a_day(
     first = client.get("/auth/me", headers=auth("alice")).json()
     second = client.get("/auth/me", headers=auth("alice")).json()
     assert first["lastLoginAt"] == second["lastLoginAt"]
+
+
+def test_user_can_change_own_settings(
+    client: TestClient, admin: dict[str, str]
+) -> None:
+    updated = client.patch(
+        "/auth/me",
+        headers=admin,
+        json={"baseCurrency": "usd", "riskFreeRate": 0.16},
+    )
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["baseCurrency"] == "USD"
+    assert body["riskFreeRate"] == 0.16
+
+    persisted = client.get("/auth/me", headers=admin).json()
+    assert persisted["baseCurrency"] == "USD"
+    assert persisted["riskFreeRate"] == 0.16
+
+    cleared = client.patch("/auth/me", headers=admin, json={"riskFreeRate": None})
+    assert cleared.json()["riskFreeRate"] is None
+    assert cleared.json()["baseCurrency"] == "USD"
+
+
+def test_settings_reject_invalid_values(
+    client: TestClient, admin: dict[str, str]
+) -> None:
+    assert (
+        client.patch("/auth/me", headers=admin, json={"baseCurrency": "US"}).status_code
+        == 422
+    )
+    assert (
+        client.patch("/auth/me", headers=admin, json={"riskFreeRate": 11}).status_code
+        == 422
+    )
+
+
+def test_settings_require_identity(client: TestClient) -> None:
+    assert client.patch("/auth/me", json={"baseCurrency": "USD"}).status_code == 401

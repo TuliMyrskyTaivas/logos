@@ -80,32 +80,6 @@ def latest_market_prices(
     return latest
 
 
-def latest_currency_rates(
-    session: Session, currencies: set[str], *, as_of: date
-) -> dict[str, Decimal]:
-    """Return roubles per one unit for the requested currencies."""
-    rates: dict[str, Decimal] = {"RUB": Decimal(1)}
-    if not currencies:
-        return rates
-
-    rows = session.execute(
-        select(PriceModel).where(
-            PriceModel.instrument.in_(currencies),
-            PriceModel.instrument_type == "currency",
-            PriceModel.price_date <= as_of,
-        )
-    ).scalars().all()
-
-    latest: dict[str, PriceModel] = {}
-    for row in rows:
-        if _is_better(row, latest.get(row.instrument)):
-            latest[row.instrument] = row
-
-    for code, row in latest.items():
-        rates[code] = row.price
-    return rates
-
-
 def resolve_price(
     asset: AssetModel,
     prices: dict[str, PriceModel],
@@ -230,7 +204,9 @@ def value_portfolio(
 
     currencies = {asset.currency.strip().upper() for asset in assets}
     currencies.add(base)
-    rates = latest_currency_rates(session, currencies - {"RUB"}, as_of=as_of)
+    # `latest_rate_map` knows both CBR fiat rates and metal gram prices, so a
+    # metal base currency (XAU) and metal-denominated positions both convert.
+    rates = latest_rate_map(session, currencies - {"RUB"}, as_of=as_of)
 
     positions: list[PositionValuation] = []
     by_class: dict[int, tuple[str, Decimal]] = {}

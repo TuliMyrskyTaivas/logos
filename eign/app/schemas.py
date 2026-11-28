@@ -36,8 +36,31 @@ class User(BaseModel):
     role: UserRole = Field(description="Application role.")
     isActive: bool = Field(description="Whether the user may sign in.")
     baseCurrency: str = Field(description="Base currency of the user's portfolio.")
+    riskFreeRate: float | None = Field(
+        default=None,
+        description=(
+            "Annual risk-free rate used by Sharpe/Sortino, or null to use the "
+            "service default."
+        ),
+    )
     lastLoginAt: datetime | None = Field(
         default=None, description="Last successful sign-in, or null."
+    )
+
+
+class UserSettingsUpdate(BaseModel):
+    """Payload for changing the caller's own portfolio settings."""
+
+    baseCurrency: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z]{3}$",
+        description="New base currency of the portfolio (fiat or metal code).",
+    )
+    riskFreeRate: float | None = Field(
+        default=None,
+        ge=-1.0,
+        le=10.0,
+        description="Annual risk-free rate; null restores the service default.",
     )
 
 

@@ -34,6 +34,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+    patch:
+      tags:
+      - auth
+      summary: Update own settings
+      description: 'Change the caller''s base currency and risk-free rate.
+
+
+        Both fields are optional; an explicit `null` risk-free rate restores the
+
+        service-wide default.'
+      operationId: update_own_settings_auth_me_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSettingsUpdate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /users:
     get:
       tags:
@@ -2489,6 +2519,12 @@ components:
           type: string
           title: Basecurrency
           description: Base currency of the user's portfolio.
+        riskFreeRate:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Riskfreerate
+          description: Annual risk-free rate used by Sharpe/Sortino, or null to use the service default.
         lastLoginAt:
           anyOf:
           - type: string
@@ -2526,6 +2562,26 @@ components:
       - login
       title: UserCreate
       description: Payload for creating a user (administrators only).
+    UserSettingsUpdate:
+      properties:
+        baseCurrency:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z]{3}$
+          - type: 'null'
+          title: Basecurrency
+          description: New base currency of the portfolio (fiat or metal code).
+        riskFreeRate:
+          anyOf:
+          - type: number
+            maximum: 10.0
+            minimum: -1.0
+          - type: 'null'
+          title: Riskfreerate
+          description: Annual risk-free rate; null restores the service default.
+      type: object
+      title: UserSettingsUpdate
+      description: Payload for changing the caller's own portfolio settings.
     UserUpdate:
       properties:
         role:
