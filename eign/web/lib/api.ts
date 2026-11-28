@@ -5,6 +5,8 @@ import {
   type Asset,
   type AssetClassInfo,
   type CurrentUser,
+  type Goal,
+  type GoalProgress,
   type IncomePlanFact,
   type IncomeSummary,
   type Performance,
@@ -20,6 +22,11 @@ export type {
   AssetUnit,
   AssetUpdate,
   CurrentUser,
+  Goal,
+  GoalAllocation,
+  GoalAllocationProgress,
+  GoalProgress,
+  GoalUpdate,
   IncomeCreate,
   IncomePlanFact,
   IncomeSummary,
@@ -104,4 +111,12 @@ export function fetchIncomeSummary(
 
 export function fetchTradePlans(identity: Identity, month: string): Promise<TradePlan[]> {
   return request<TradePlan[]>(identity, `/trade-plan?month=${month}-01`);
+}
+
+export function fetchGoals(identity: Identity): Promise<Goal> {
+  return request<Goal>(identity, "/goals");
+}
+
+export function fetchGoalProgress(identity: Identity): Promise<GoalProgress> {
+  return request<GoalProgress>(identity, "/goals/progress");
 }

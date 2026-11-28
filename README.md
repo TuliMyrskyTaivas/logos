@@ -220,9 +220,10 @@ The Next.js (App Router) application in [`eign/web`](eign/web) renders the
 portfolio screens: `/portfolio/summary` (valuation, allocation, performance and
 risk metrics), `/assets` (positions with create/edit/delete), `/trades` (trade
 history, registration and corrections with position recalculation), `/plan`
-(monthly trade plan with progress from the month's trades) and `/income`
-(income plan/fact per year with execution to date). The root `/` redirects to
-the summary.
+(monthly trade plan with progress from the month's trades), `/income` (income
+plan/fact per year with execution to date) and `/goals` (target value in a
+currency or grams of metal, target return and target allocation). The root `/`
+redirects to the summary.
 
 - Server components call the API at `EIGN_API_URL` and forward the identity
   headers set by nginx (`X-Client-CN` / `X-SSL-Client-Verify`). Mutations and

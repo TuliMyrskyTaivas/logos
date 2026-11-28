@@ -28,6 +28,11 @@ export type PlanStatusInput = NonNullable<
 >;
 export type TradePlanCreate = components["schemas"]["TradePlanCreate"];
 export type TradePlanUpdate = components["schemas"]["TradePlanUpdate"];
+export type Goal = components["schemas"]["Goal"];
+export type GoalAllocation = components["schemas"]["GoalAllocation"];
+export type GoalUpdate = components["schemas"]["GoalUpdate"];
+export type GoalProgress = components["schemas"]["GoalProgress"];
+export type GoalAllocationProgress = components["schemas"]["GoalAllocationProgress"];
 
 export class ApiError extends Error {
   readonly status: number;
