@@ -7,6 +7,7 @@ Next.js (App Router) frontend of the Eign portfolio service.
 | `/portfolio/summary` | valuation, allocation, performance and risk metrics, positions |
 | `/assets` | positions: table with sorting/search/class filter, create, edit, delete |
 | `/trades` | trade history with filters, register, correct and delete trades |
+| `/plan` | monthly trade plan: targets per position or class (money or units), progress from the month's trades, planned/executed/cancelled |
 | `/income` | income plan/fact per year: totals, execution to date, monthly chart, rows CRUD |
 
 `/` redirects to `/portfolio/summary`.
@@ -87,10 +88,12 @@ app/
 ├── portfolio/summary/      # page, loading skeleton, error boundary
 ├── assets/                 # positions page (+ loading, error)
 ├── trades/                 # trades page (+ loading, error)
+├── plan/                   # trade plan page (+ loading, error); month via ?month=
 └── income/                 # income page (+ loading, error); year via ?year=
 components/
 ├── assets/                 # table, form and view of positions
 ├── trades/                 # table, form and view of trades
+├── plan/                   # plan table with progress bars, form and view
 ├── income/                 # table, form, view and plan-vs-fact chart
 ├── ui/                     # button, field, modal, card, table, alert
 ├── nav.tsx                 # section navigation

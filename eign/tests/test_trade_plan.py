@@ -164,6 +164,25 @@ def test_update_switches_target_metric_and_cancels(
     assert cancelled.json()["status"] == "cancelled"
 
 
+def test_update_switches_from_quantity_to_amount_in_one_request(
+    client: TestClient, admin: dict[str, str], asset_factory: Callable[..., dict[str, Any]]
+) -> None:
+    """A form sends the whole state, clearing one unit and setting the other."""
+    asset = asset_factory(name="SBER")
+    plan = _plan(client, admin, assetId=asset["id"], quantity=10).json()
+    assert plan["amount"] is None
+
+    switched = client.patch(
+        f"/trade-plan/{plan['id']}",
+        headers=admin,
+        json={"quantity": None, "amount": 5000},
+    )
+    assert switched.status_code == 200
+    body = switched.json()
+    assert body["amount"] == 5000
+    assert body["quantity"] is None
+
+
 def test_delete_plan(client: TestClient, admin: dict[str, str]) -> None:
     plan = _plan(client, admin).json()
     assert client.delete(f"/trade-plan/{plan['id']}", headers=admin).status_code == 204

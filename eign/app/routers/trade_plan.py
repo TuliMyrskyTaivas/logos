@@ -273,20 +273,22 @@ def update_trade_plan(
         plan.asset_class_id = asset_class_id
 
     if "quantity" in data:
-        if data["quantity"] is None:
-            plan.quantity = None
-        else:
-            plan.quantity = Decimal(str(data["quantity"]))
+        plan.quantity = (
+            Decimal(str(data["quantity"])) if data["quantity"] is not None else None
+        )
+        if plan.quantity is not None:
             plan.amount = None
+    if data.get("amount") is not None:
+        plan.amount = Decimal(str(data["amount"]))
+        plan.quantity = None
+    # Validate after applying both: switching between units and money must work
+    # in a single request.
     _validate_target(plan.asset_id, plan.amount, plan.quantity)
 
     if data.get("month") is not None:
         plan.month = month_start(data["month"])
     if data.get("direction") is not None:
         plan.direction = data["direction"]
-    if data.get("amount") is not None:
-        plan.amount = Decimal(str(data["amount"]))
-        plan.quantity = None
     if data.get("status") is not None:
         plan.status = data["status"]
     if "note" in data:

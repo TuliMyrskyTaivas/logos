@@ -10,6 +10,7 @@ import {
   type Performance,
   type PortfolioSummary,
   type Trade,
+  type TradePlan,
 } from "./types";
 
 export type {
@@ -27,11 +28,16 @@ export type {
   MonthlyIncome,
   MonthlyPerformance,
   Performance,
+  PlanStatus,
+  PlanStatusInput,
   PortfolioClassSummary,
   PortfolioPosition,
   PortfolioSummary,
   Trade,
   TradeCreate,
+  TradePlan,
+  TradePlanCreate,
+  TradePlanUpdate,
   TradeType,
   TradeUpdate,
 } from "./types";
@@ -94,4 +100,8 @@ export function fetchIncomeSummary(
   year: number,
 ): Promise<IncomeSummary> {
   return request<IncomeSummary>(identity, `/income/summary?year=${year}`);
+}
+
+export function fetchTradePlans(identity: Identity, month: string): Promise<TradePlan[]> {
+  return request<TradePlan[]>(identity, `/trade-plan?month=${month}-01`);
 }
