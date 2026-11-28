@@ -1,0 +1,2635 @@
+openapi: 3.2.0
+info:
+  title: Eign Portfolio API
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      tags:
+      - service
+      summary: Liveness probe
+      description: Report that the service process is running (used by healthchecks).
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+  /auth/me:
+    get:
+      tags:
+      - auth
+      summary: Read Current User
+      description: 'Return the authenticated user.
+
+
+        The first request creates the very first user with the `admin` role.'
+      operationId: read_current_user_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /users:
+    get:
+      tags:
+      - users
+      summary: List users
+      description: Return all users, including deactivated ones.
+      operationId: list_users_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/User'
+                type: array
+                title: Response List Users Users Get
+    post:
+      tags:
+      - users
+      summary: Create a user
+      description: Register a new user. Certificates are issued by an external CA.
+      operationId: create_user_users_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /users/{userId}:
+    patch:
+      tags:
+      - users
+      summary: Update a user
+      description: 'Change the role or the activation status of a user.
+
+
+        Administrators may edit their own record, but the service always keeps at
+
+        least one active administrator.'
+      operationId: update_user_users__userId__patch
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Userid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - users
+      summary: Deactivate a user
+      description: 'Soft-delete a user: portfolio history is kept, sign-in is blocked.'
+      operationId: delete_user_users__userId__delete
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Userid
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /asset-classes:
+    get:
+      tags:
+      - asset-classes
+      summary: List asset classes
+      description: Return the asset class dictionary used by positions and plans.
+      operationId: list_asset_classes_asset_classes_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/AssetClassInfo'
+                type: array
+                title: Response List Asset Classes Asset Classes Get
+  /assets:
+    get:
+      tags:
+      - assets
+      summary: List positions
+      description: Return the current user's positions, optionally filtered by class.
+      operationId: list_assets_assets_get
+      parameters:
+      - name: assetClassId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetclassid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asset'
+                title: Response List Assets Assets Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - assets
+      summary: Create a position
+      description: Create a position. Its quantity may be set manually while it has no trades.
+      operationId: create_asset_assets_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /assets/{assetId}:
+    get:
+      tags:
+      - assets
+      summary: Get a position
+      description: Return one of the current user's positions.
+      operationId: get_asset_assets__assetId__get
+      parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Assetid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - assets
+      summary: Update a position
+      description: 'Update a position.
+
+
+        Quantity and average purchase price are derived from trades, so they can
+
+        only be changed while the position has no trades.'
+      operationId: update_asset_assets__assetId__patch
+      parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Assetid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - assets
+      summary: Delete a position
+      description: Delete a position together with its trade history (database cascade).
+      operationId: delete_asset_assets__assetId__delete
+      parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Assetid
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /trades:
+    get:
+      tags:
+      - trades
+      summary: List trades
+      description: Return the current user's trades, newest first.
+      operationId: list_trades_trades_get
+      parameters:
+      - name: assetId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+      - name: tradeType
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - BUY
+            - SELL
+            type: string
+          - type: 'null'
+          title: Tradetype
+      - name: dateFrom
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Datefrom
+      - name: dateTo
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Dateto
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Trade'
+                title: Response List Trades Trades Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - trades
+      summary: Register a trade
+      description: Register a buy or sell and recalculate the position.
+      operationId: create_trade_trades_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TradeCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /trades/{tradeId}:
+    patch:
+      tags:
+      - trades
+      summary: Correct a trade
+      description: Correct a trade; the whole position is recalculated afterwards.
+      operationId: update_trade_trades__tradeId__patch
+      parameters:
+      - name: tradeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Tradeid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TradeUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - trades
+      summary: Delete a trade
+      description: Delete a trade and recalculate the position from the remaining ones.
+      operationId: delete_trade_trades__tradeId__delete
+      parameters:
+      - name: tradeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Tradeid
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /trade-plan:
+    get:
+      tags:
+      - trade-plan
+      summary: List planned trades
+      description: Return planned trades of the current user with their month progress.
+      operationId: list_trade_plan_trade_plan_get
+      parameters:
+      - name: month
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Month
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - planned
+            - executed
+            - cancelled
+            type: string
+          - type: 'null'
+          title: Status
+      - name: assetClassId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetclassid
+      - name: assetId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TradePlan'
+                title: Response List Trade Plan Trade Plan Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - trade-plan
+      summary: Plan a trade
+      description: Plan a purchase or sale of a whole asset class or of one position.
+      operationId: create_trade_plan_trade_plan_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TradePlanCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TradePlan'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /trade-plan/{planId}:
+    patch:
+      tags:
+      - trade-plan
+      summary: Change a planned trade
+      description: Update a planned trade; the target may be switched between class and asset.
+      operationId: update_trade_plan_trade_plan__planId__patch
+      parameters:
+      - name: planId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Planid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TradePlanUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TradePlan'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - trade-plan
+      summary: Delete a planned trade
+      description: Delete a planned trade.
+      operationId: delete_trade_plan_trade_plan__planId__delete
+      parameters:
+      - name: planId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Planid
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /prices:
+    post:
+      tags:
+      - prices
+      summary: Enter a quote manually
+      description: Store a manual quote; it takes precedence over fetched quotes of that day.
+      operationId: create_manual_price_prices_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Price'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /portfolio/summary:
+    get:
+      tags:
+      - portfolio
+      summary: Value the portfolio
+      description: 'Value the current user''s positions at the latest known prices.
+
+
+        Market cache first, then the manually maintained `currentPrice` of the
+
+        position. Values are converted to the user''s base currency with CBR rates.'
+      operationId: get_portfolio_summary_portfolio_summary_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioSummary'
+  /portfolio/performance:
+    get:
+      tags:
+      - portfolio
+      summary: Portfolio performance and risk metrics
+      description: Compute time- and money-weighted metrics from the stored snapshots.
+      operationId: get_portfolio_performance_portfolio_performance_get
+      parameters:
+      - name: dateFrom
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Datefrom
+      - name: dateTo
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Dateto
+      - name: riskFreeRate
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            maximum: 10.0
+            minimum: -1.0
+          - type: 'null'
+          description: Annual risk-free rate; defaults to settings.
+          title: Riskfreerate
+        description: Annual risk-free rate; defaults to settings.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Performance'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /valuations:
+    get:
+      tags:
+      - valuations
+      summary: List stored valuations
+      description: Return the current user's snapshots, newest first.
+      operationId: list_valuations_valuations_get
+      parameters:
+      - name: dateFrom
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Datefrom
+      - name: dateTo
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Dateto
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 240
+          minimum: 1
+          default: 24
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Valuation'
+                title: Response List Valuations Valuations Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /valuations/latest:
+    get:
+      tags:
+      - valuations
+      summary: Get the latest valuation
+      description: Return the most recent stored snapshot of the current user.
+      operationId: get_latest_valuation_valuations_latest_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Valuation'
+  /goals:
+    get:
+      tags:
+      - goals
+      summary: Get portfolio goals
+      description: Return the goals of the current user; an empty goal when none are set.
+      operationId: read_goals_goals_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+    put:
+      tags:
+      - goals
+      summary: Save portfolio goals
+      description: 'Create or replace the goals of the current user.
+
+
+        Allocations are replaced entirely, so the payload is the full target
+
+        distribution. Non-empty weights must sum to 100 %.'
+      operationId: save_goals_goals_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalUpdate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /goals/progress:
+    get:
+      tags:
+      - goals
+      summary: Progress towards the goals
+      description: Compare the current portfolio with the target value, weights and return.
+      operationId: get_goal_progress_goals_progress_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalProgress'
+  /income:
+    get:
+      tags:
+      - income
+      summary: List income plan/fact rows
+      description: Return income rows, newest month first.
+      operationId: list_income_income_get
+      parameters:
+      - name: assetId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+      - name: year
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Year
+      - name: incomeType
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - dividend
+            - coupon
+            - interest
+            - other
+            type: string
+          - type: 'null'
+          title: Incometype
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IncomePlanFact'
+                title: Response List Income Income Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - income
+      summary: Add an income row
+      description: Record planned and/or actual income of a position for a month.
+      operationId: create_income_income_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncomeCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomePlanFact'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /income/summary:
+    get:
+      tags:
+      - income
+      summary: Plan/fact summary by month
+      description: Return plan/fact totals per month of a year in the base currency.
+      operationId: get_income_summary_income_summary_get
+      parameters:
+      - name: year
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            maximum: 2200
+            minimum: 2000
+          - type: 'null'
+          title: Year
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomeSummary'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /income/{incomeId}:
+    patch:
+      tags:
+      - income
+      summary: Correct an income row
+      description: Change amounts or details of an income row.
+      operationId: update_income_income__incomeId__patch
+      parameters:
+      - name: incomeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Incomeid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncomeUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomePlanFact'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - income
+      summary: Delete an income row
+      description: Delete an income row.
+      operationId: delete_income_income__incomeId__delete
+      parameters:
+      - name: incomeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Incomeid
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    Asset:
+      properties:
+        id:
+          type: integer
+          title: Id
+          description: Database identifier.
+        assetClassId:
+          type: integer
+          title: Assetclassid
+          description: Asset class identifier.
+        assetClassCode:
+          type: string
+          title: Assetclasscode
+          description: Asset class code (EQUITY, BOND, ...).
+        name:
+          type: string
+          title: Name
+          description: Position name.
+        ticker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ticker
+          description: Exchange ticker.
+        isin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Isin
+          description: ISIN code.
+        metalCode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Metalcode
+          description: Metal code for METAL positions (XAU, XAG, ...).
+        currency:
+          type: string
+          title: Currency
+          description: Currency of the position.
+        quantity:
+          type: number
+          title: Quantity
+          description: Units held; derived from trades.
+        unit:
+          type: string
+          enum:
+          - share
+          - bond
+          - unit
+          - RUB
+          - g
+          - oz
+          title: Unit
+          description: Unit of the quantity.
+        avgPurchasePrice:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Avgpurchaseprice
+          description: Weighted average cost per unit, or null.
+        currentPrice:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Currentprice
+          description: Last known price per unit, or null.
+        custodian:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Custodian
+          description: Broker or storage.
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+          description: Creation timestamp.
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+          description: Last modification timestamp.
+      type: object
+      required:
+      - id
+      - assetClassId
+      - assetClassCode
+      - name
+      - currency
+      - quantity
+      - unit
+      - createdAt
+      - updatedAt
+      title: Asset
+      description: A portfolio position.
+    AssetClassInfo:
+      properties:
+        id:
+          type: integer
+          title: Id
+          description: Database identifier.
+        code:
+          type: string
+          title: Code
+          description: Stable code (EQUITY, BOND, REIT, CASH, METAL).
+        name:
+          type: string
+          title: Name
+          description: Human-readable name.
+        sortOrder:
+          type: integer
+          title: Sortorder
+          description: Display order.
+      type: object
+      required:
+      - id
+      - code
+      - name
+      - sortOrder
+      title: AssetClassInfo
+      description: An entry of the asset class dictionary.
+    AssetCreate:
+      properties:
+        assetClassId:
+          type: integer
+          title: Assetclassid
+          description: Asset class identifier.
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+          description: Position name.
+        unit:
+          type: string
+          enum:
+          - share
+          - bond
+          - unit
+          - RUB
+          - g
+          - oz
+          title: Unit
+          description: Unit of the quantity.
+        quantity:
+          type: number
+          minimum: 0.0
+          title: Quantity
+          description: Initial quantity.
+          default: 0
+        ticker:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Ticker
+          description: Exchange ticker.
+        isin:
+          anyOf:
+          - type: string
+            maxLength: 12
+          - type: 'null'
+          title: Isin
+          description: ISIN code.
+        metalCode:
+          anyOf:
+          - type: string
+            maxLength: 8
+          - type: 'null'
+          title: Metalcode
+          description: Metal code; required for METAL.
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          title: Currency
+          description: Currency.
+          default: RUB
+        avgPurchasePrice:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Avgpurchaseprice
+          description: Average purchase price per unit.
+        currentPrice:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Currentprice
+          description: Current price per unit.
+        custodian:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Custodian
+          description: Broker or storage.
+      type: object
+      required:
+      - assetClassId
+      - name
+      - unit
+      title: AssetCreate
+      description: Payload for creating a position.
+    AssetUpdate:
+      properties:
+        assetClassId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetclassid
+          description: Asset class identifier.
+        name:
+          anyOf:
+          - type: string
+            maxLength: 255
+            minLength: 1
+          - type: 'null'
+          title: Name
+        unit:
+          anyOf:
+          - type: string
+            enum:
+            - share
+            - bond
+            - unit
+            - RUB
+            - g
+            - oz
+          - type: 'null'
+          title: Unit
+        quantity:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Quantity
+          description: Only for positions without trades.
+        ticker:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Ticker
+        isin:
+          anyOf:
+          - type: string
+            maxLength: 12
+          - type: 'null'
+          title: Isin
+        metalCode:
+          anyOf:
+          - type: string
+            maxLength: 8
+          - type: 'null'
+          title: Metalcode
+        currency:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z]{3}$
+          - type: 'null'
+          title: Currency
+        avgPurchasePrice:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Avgpurchaseprice
+          description: Only for positions without trades.
+        currentPrice:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Currentprice
+        custodian:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Custodian
+      type: object
+      title: AssetUpdate
+      description: Payload for partially updating a position.
+    Goal:
+      properties:
+        id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Id
+          description: Database identifier; null until saved.
+        currency:
+          type: string
+          title: Currency
+          description: 'Currency of the target value: fiat code or metal code (XAU/XAG, per gram).'
+        targetTotalValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Targettotalvalue
+          description: Target portfolio value.
+        targetAnnualReturn:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Targetannualreturn
+          description: Target annual return (0.1 = 10 %).
+        allocations:
+          items:
+            $ref: '#/components/schemas/GoalAllocation'
+          type: array
+          title: Allocations
+          description: Target weights by asset class.
+        updatedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updatedat
+          description: Last update timestamp.
+      type: object
+      required:
+      - currency
+      title: Goal
+      description: Portfolio goals of the current user.
+    GoalAllocation:
+      properties:
+        assetClassId:
+          type: integer
+          title: Assetclassid
+          description: Asset class identifier.
+        assetClassCode:
+          type: string
+          title: Assetclasscode
+          description: Asset class code.
+        targetWeight:
+          type: number
+          title: Targetweight
+          description: Target share of the portfolio (0..1).
+      type: object
+      required:
+      - assetClassId
+      - assetClassCode
+      - targetWeight
+      title: GoalAllocation
+      description: Target weight of one asset class in the portfolio.
+    GoalAllocationInput:
+      properties:
+        assetClassId:
+          type: integer
+          title: Assetclassid
+          description: Asset class identifier.
+        targetWeight:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Targetweight
+          description: Target share of the portfolio.
+      type: object
+      required:
+      - assetClassId
+      - targetWeight
+      title: GoalAllocationInput
+      description: Target weight of one asset class in a goal payload.
+    GoalAllocationProgress:
+      properties:
+        assetClassId:
+          type: integer
+          title: Assetclassid
+          description: Asset class identifier.
+        assetClassCode:
+          type: string
+          title: Assetclasscode
+          description: Asset class code.
+        targetWeight:
+          type: number
+          title: Targetweight
+          description: Target share (0..1).
+        actualWeight:
+          type: number
+          title: Actualweight
+          description: Actual share (0..1).
+        delta:
+          type: number
+          title: Delta
+          description: actualWeight - targetWeight.
+      type: object
+      required:
+      - assetClassId
+      - assetClassCode
+      - targetWeight
+      - actualWeight
+      - delta
+      title: GoalAllocationProgress
+      description: Comparison of the target and actual weight of an asset class.
+    GoalProgress:
+      properties:
+        currency:
+          type: string
+          title: Currency
+          description: Currency the target value is expressed in.
+        baseCurrency:
+          type: string
+          title: Basecurrency
+          description: Base currency of the portfolio.
+        asOf:
+          type: string
+          format: date
+          title: Asof
+          description: Valuation date.
+        targetTotalValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Targettotalvalue
+          description: Target value as set.
+        targetTotalValueBase:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Targettotalvaluebase
+          description: Target value converted to the base currency.
+        currentValueBase:
+          type: number
+          title: Currentvaluebase
+          description: Current portfolio value in the base currency.
+        valueProgress:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Valueprogress
+          description: currentValueBase / targetTotalValueBase, or null.
+        valueGapBase:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Valuegapbase
+          description: Remaining amount in the base currency (negative when exceeded).
+        targetAnnualReturn:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Targetannualreturn
+          description: Target annual return.
+        actualAnnualReturn:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Actualannualreturn
+          description: Actual annualised TWR, or null without history.
+        returnGap:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Returngap
+          description: actualAnnualReturn - targetAnnualReturn.
+        allocations:
+          items:
+            $ref: '#/components/schemas/GoalAllocationProgress'
+          type: array
+          title: Allocations
+          description: Target vs actual weights.
+      type: object
+      required:
+      - currency
+      - baseCurrency
+      - asOf
+      - currentValueBase
+      title: GoalProgress
+      description: How far the portfolio is from its goals.
+    GoalUpdate:
+      properties:
+        currency:
+          type: string
+          pattern: ^[A-Za-z]{3}$
+          title: Currency
+          description: Currency of the target value (RUB/USD/… or XAU/XAG per gram).
+          default: RUB
+        targetTotalValue:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Targettotalvalue
+        targetAnnualReturn:
+          anyOf:
+          - type: number
+            maximum: 10.0
+            minimum: -1.0
+          - type: 'null'
+          title: Targetannualreturn
+        allocations:
+          items:
+            $ref: '#/components/schemas/GoalAllocationInput'
+          type: array
+          title: Allocations
+      type: object
+      title: GoalUpdate
+      description: Payload for saving portfolio goals; allocations are replaced entirely.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HealthStatus:
+      properties:
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - status
+      title: HealthStatus
+      description: Service liveness response.
+    IncomeCreate:
+      properties:
+        month:
+          type: string
+          format: date
+          title: Month
+          description: Income month; normalised to the first day.
+        incomeType:
+          type: string
+          enum:
+          - dividend
+          - coupon
+          - interest
+          - other
+          title: Incometype
+          description: dividend, coupon, interest or other.
+        assetId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+          description: Income source position.
+        currency:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z]{3}$
+          - type: 'null'
+          title: Currency
+          description: Defaults to the position currency, otherwise the base currency.
+        plannedAmount:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Plannedamount
+        actualAmount:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Actualamount
+        note:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - month
+      - incomeType
+      title: IncomeCreate
+      description: Payload for adding a planned/actual income row.
+    IncomePlanFact:
+      properties:
+        id:
+          type: integer
+          title: Id
+          description: Database identifier.
+        assetId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+          description: Income source position, or null.
+        month:
+          type: string
+          format: date
+          title: Month
+          description: Income month (always the first day).
+        incomeType:
+          type: string
+          enum:
+          - dividend
+          - coupon
+          - interest
+          - other
+          title: Incometype
+          description: dividend, coupon, interest or other.
+        currency:
+          type: string
+          title: Currency
+          description: Currency of the amounts.
+        plannedAmount:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Plannedamount
+          description: Planned amount.
+        actualAmount:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Actualamount
+          description: Actual amount received.
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+          description: Free-form note.
+      type: object
+      required:
+      - id
+      - month
+      - incomeType
+      - currency
+      title: IncomePlanFact
+      description: Planned and actual income of a position (or of the portfolio) per month.
+    IncomeSummary:
+      properties:
+        baseCurrency:
+          type: string
+          title: Basecurrency
+          description: Base currency of the portfolio.
+        year:
+          type: integer
+          title: Year
+          description: Reporting year.
+        months:
+          items:
+            $ref: '#/components/schemas/MonthlyIncome'
+          type: array
+          title: Months
+          description: Plan and fact per month.
+        plannedYearToDate:
+          type: number
+          title: Plannedyeartodate
+          description: Planned income for the year so far.
+        actualYearToDate:
+          type: number
+          title: Actualyeartodate
+          description: Actual income for the year so far.
+        unconvertedCount:
+          type: integer
+          title: Unconvertedcount
+          description: Rows skipped because the currency rate is unknown.
+      type: object
+      required:
+      - baseCurrency
+      - year
+      - months
+      - plannedYearToDate
+      - actualYearToDate
+      - unconvertedCount
+      title: IncomeSummary
+      description: Income plan/fact for a year.
+    IncomeUpdate:
+      properties:
+        month:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Month
+          description: Income month; normalised to the first day.
+        incomeType:
+          anyOf:
+          - type: string
+            enum:
+            - dividend
+            - coupon
+            - interest
+            - other
+          - type: 'null'
+          title: Incometype
+        assetId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+          description: Income source position; null clears it.
+        currency:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z]{3}$
+          - type: 'null'
+          title: Currency
+        plannedAmount:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Plannedamount
+        actualAmount:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Actualamount
+        note:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Note
+      type: object
+      title: IncomeUpdate
+      description: Payload for correcting an income row.
+    MonthlyIncome:
+      properties:
+        month:
+          type: string
+          format: date
+          title: Month
+          description: Month (first day).
+        plannedBase:
+          type: number
+          title: Plannedbase
+          description: Planned income converted to the base currency.
+        actualBase:
+          type: number
+          title: Actualbase
+          description: Actual income converted to the base currency.
+        planCount:
+          type: integer
+          title: Plancount
+          description: Rows that have a planned amount.
+        factCount:
+          type: integer
+          title: Factcount
+          description: Rows that have an actual amount.
+      type: object
+      required:
+      - month
+      - plannedBase
+      - actualBase
+      - planCount
+      - factCount
+      title: MonthlyIncome
+      description: Plan and fact of one month in the base currency.
+    MonthlyPerformance:
+      properties:
+        periodDate:
+          type: string
+          format: date
+          title: Perioddate
+          description: Snapshot date closing the period.
+        value:
+          type: number
+          title: Value
+          description: Portfolio value at that date.
+        flow:
+          type: number
+          title: Flow
+          description: Net invested money in the period (positive = bought, negative = sold).
+        returnPct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Returnpct
+          description: Time-weighted return of the period, or null.
+      type: object
+      required:
+      - periodDate
+      - value
+      - flow
+      title: MonthlyPerformance
+      description: Performance of one sub-period between two snapshots.
+    Performance:
+      properties:
+        baseCurrency:
+          type: string
+          title: Basecurrency
+          description: Base currency of the portfolio.
+        asOf:
+          type: string
+          format: date
+          title: Asof
+          description: Date the metrics were requested.
+        periodStart:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Periodstart
+          description: First snapshot date.
+        periodEnd:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Periodend
+          description: Last snapshot date.
+        initialValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Initialvalue
+          description: Value at the first snapshot.
+        finalValue:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Finalvalue
+          description: Value at the last snapshot.
+        contributions:
+          type: number
+          title: Contributions
+          description: Money invested during the period.
+        withdrawals:
+          type: number
+          title: Withdrawals
+          description: Money withdrawn during the period.
+        income:
+          type: number
+          title: Income
+          description: Income received during the period (in the base currency).
+          default: 0.0
+        simpleReturn:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Simplereturn
+          description: Simple return over the whole period.
+        twr:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Twr
+          description: Time-weighted return.
+        annualizedTwr:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Annualizedtwr
+          description: Annualised TWR.
+        xirr:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Xirr
+          description: Money-weighted return (XIRR).
+        volatility:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Volatility
+          description: Annualised volatility of period returns.
+        maxDrawdown:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Maxdrawdown
+          description: Maximum drawdown of the TWR index (negative or zero).
+        sharpe:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sharpe
+          description: Sharpe ratio.
+        sortino:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sortino
+          description: Sortino ratio.
+        periods:
+          type: integer
+          title: Periods
+          description: Number of sub-periods with a computed return.
+        monthly:
+          items:
+            $ref: '#/components/schemas/MonthlyPerformance'
+          type: array
+          title: Monthly
+          description: Per-period details.
+      type: object
+      required:
+      - baseCurrency
+      - asOf
+      - contributions
+      - withdrawals
+      - periods
+      - monthly
+      title: Performance
+      description: Portfolio performance and risk metrics.
+    PortfolioClassSummary:
+      properties:
+        assetClassId:
+          type: integer
+          title: Assetclassid
+          description: Asset class identifier.
+        assetClassCode:
+          type: string
+          title: Assetclasscode
+          description: Asset class code.
+        value:
+          type: number
+          title: Value
+          description: Value in the base currency.
+        weight:
+          type: number
+          title: Weight
+          description: Share of the total value (0..1).
+      type: object
+      required:
+      - assetClassId
+      - assetClassCode
+      - value
+      - weight
+      title: PortfolioClassSummary
+      description: Portfolio value of one asset class.
+    PortfolioPosition:
+      properties:
+        assetId:
+          type: integer
+          title: Assetid
+          description: Database identifier of the position.
+        name:
+          type: string
+          title: Name
+          description: Position name.
+        assetClassId:
+          type: integer
+          title: Assetclassid
+          description: Asset class identifier.
+        assetClassCode:
+          type: string
+          title: Assetclasscode
+          description: Asset class code.
+        currency:
+          type: string
+          title: Currency
+          description: Position currency.
+        quantity:
+          type: number
+          title: Quantity
+          description: Units held.
+        price:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Price
+          description: Price per unit used for valuation.
+        priceCurrency:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pricecurrency
+          description: Currency of that price.
+        priceDate:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Pricedate
+          description: Date of that price.
+        priceSource:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pricesource
+          description: Where the price came from (moex, cbr, guldvegt, manual, cash).
+        value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Value
+          description: Value in the position currency.
+        valueBase:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Valuebase
+          description: Value in the base currency.
+        priced:
+          type: boolean
+          title: Priced
+          description: Whether the position could be valued.
+        unpricedReason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unpricedreason
+          description: no_instrument, no_price or no_rate when not priced.
+      type: object
+      required:
+      - assetId
+      - name
+      - assetClassId
+      - assetClassCode
+      - currency
+      - quantity
+      - priced
+      title: PortfolioPosition
+      description: A position valued at the latest known price.
+    PortfolioSummary:
+      properties:
+        baseCurrency:
+          type: string
+          title: Basecurrency
+          description: Base currency of the portfolio.
+        asOf:
+          type: string
+          format: date
+          title: Asof
+          description: Valuation date.
+        totalValue:
+          type: number
+          title: Totalvalue
+          description: Total value in the base currency.
+        byClass:
+          items:
+            $ref: '#/components/schemas/PortfolioClassSummary'
+          type: array
+          title: Byclass
+          description: Value per asset class.
+        positions:
+          items:
+            $ref: '#/components/schemas/PortfolioPosition'
+          type: array
+          title: Positions
+          description: Valued positions.
+        unpricedCount:
+          type: integer
+          title: Unpricedcount
+          description: Positions that could not be valued.
+        incomeYearToDate:
+          type: number
+          title: Incomeyeartodate
+          description: Actual income of the current year in the base currency.
+          default: 0.0
+        incomePlanYearToDate:
+          type: number
+          title: Incomeplanyeartodate
+          description: Planned income of the current year in the base currency.
+          default: 0.0
+      type: object
+      required:
+      - baseCurrency
+      - asOf
+      - totalValue
+      - byClass
+      - positions
+      - unpricedCount
+      title: PortfolioSummary
+      description: Current portfolio valuation.
+    Price:
+      properties:
+        id:
+          type: integer
+          title: Id
+          description: Database identifier.
+        instrument:
+          type: string
+          title: Instrument
+          description: Ticker, ISIN, metal or currency code.
+        instrumentType:
+          type: string
+          enum:
+          - ticker
+          - isin
+          - metal
+          - currency
+          title: Instrumenttype
+          description: Kind of the instrument.
+        source:
+          type: string
+          title: Source
+          description: Quote source (manual, moex, cbr, guldvegt).
+        priceDate:
+          type: string
+          format: date
+          title: Pricedate
+          description: Quote date.
+        price:
+          type: number
+          title: Price
+          description: Price per unit in `currency`.
+        currency:
+          type: string
+          title: Currency
+          description: Quote currency.
+      type: object
+      required:
+      - id
+      - instrument
+      - instrumentType
+      - source
+      - priceDate
+      - price
+      - currency
+      title: Price
+      description: A cached market price or currency rate.
+    PriceCreate:
+      properties:
+        instrument:
+          type: string
+          maxLength: 32
+          minLength: 1
+          title: Instrument
+          description: Ticker, ISIN or metal code.
+        instrumentType:
+          type: string
+          enum:
+          - ticker
+          - isin
+          - metal
+          - currency
+          title: Instrumenttype
+          description: Kind of the instrument.
+        price:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Price
+          description: Price per unit.
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          title: Currency
+          default: RUB
+        priceDate:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Pricedate
+          description: Quote date; defaults to today.
+      type: object
+      required:
+      - instrument
+      - instrumentType
+      - price
+      title: PriceCreate
+      description: Payload for entering a quote manually.
+    Trade:
+      properties:
+        id:
+          type: integer
+          title: Id
+          description: Database identifier.
+        assetId:
+          type: integer
+          title: Assetid
+          description: Position the trade belongs to.
+        tradeType:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Tradetype
+          description: BUY or SELL.
+        tradeDate:
+          type: string
+          format: date
+          title: Tradedate
+          description: Trade date.
+        quantity:
+          type: number
+          title: Quantity
+          description: Traded quantity.
+        price:
+          type: number
+          title: Price
+          description: Price per unit.
+        fee:
+          type: number
+          title: Fee
+          description: Commission paid.
+        currency:
+          type: string
+          title: Currency
+          description: Trade currency.
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+          description: Free-form note.
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+          description: Creation timestamp.
+      type: object
+      required:
+      - id
+      - assetId
+      - tradeType
+      - tradeDate
+      - quantity
+      - price
+      - fee
+      - currency
+      - createdAt
+      title: Trade
+      description: A registered buy or sell transaction.
+    TradeCreate:
+      properties:
+        assetId:
+          type: integer
+          title: Assetid
+          description: Position the trade belongs to.
+        tradeType:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Tradetype
+          description: BUY or SELL.
+        tradeDate:
+          type: string
+          format: date
+          title: Tradedate
+          description: Trade date.
+        quantity:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Quantity
+          description: Traded quantity.
+        price:
+          type: number
+          minimum: 0.0
+          title: Price
+          description: Price per unit.
+        fee:
+          type: number
+          minimum: 0.0
+          title: Fee
+          description: Commission paid.
+          default: 0
+        currency:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z]{3}$
+          - type: 'null'
+          title: Currency
+          description: Defaults to the position currency; a different one is rejected.
+        note:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - assetId
+      - tradeType
+      - tradeDate
+      - quantity
+      - price
+      title: TradeCreate
+      description: Payload for registering a trade.
+    TradePlan:
+      properties:
+        id:
+          type: integer
+          title: Id
+          description: Database identifier.
+        assetId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+          description: Target position, if planned per asset.
+        assetClassId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetclassid
+          description: Target class, if planned per class.
+        month:
+          type: string
+          format: date
+          title: Month
+          description: Target month (always the first day of the month).
+        direction:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Direction
+          description: BUY or SELL.
+        amount:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Amount
+          description: Planned amount in the position currency.
+        quantity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Quantity
+          description: Planned quantity in units; only for plans attached to a position.
+        filled:
+          type: number
+          title: Filled
+          description: 'Progress of the month in the same unit as the target: traded units when `quantity`
+            is set, otherwise the traded amount of the month.'
+        status:
+          type: string
+          enum:
+          - planned
+          - executed
+          - cancelled
+          title: Status
+          description: planned, executed (reached by the trades of the month) or cancelled.
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+          description: Free-form note.
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+          description: Creation timestamp.
+      type: object
+      required:
+      - id
+      - month
+      - direction
+      - filled
+      - status
+      - createdAt
+      title: TradePlan
+      description: A planned purchase or sale for a month.
+    TradePlanCreate:
+      properties:
+        month:
+          type: string
+          format: date
+          title: Month
+          description: Target month; normalised to the first day.
+        direction:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Direction
+          description: BUY or SELL.
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Amount
+          description: Planned amount; exactly one of amount/quantity.
+        quantity:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Quantity
+          description: Planned quantity; requires assetId.
+        assetId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+          description: Target position.
+        assetClassId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetclassid
+          description: Target class.
+        note:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - month
+      - direction
+      title: TradePlanCreate
+      description: Payload for planning a trade.
+    TradePlanUpdate:
+      properties:
+        month:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Month
+          description: Target month; normalised to the first day.
+        direction:
+          anyOf:
+          - type: string
+            enum:
+            - BUY
+            - SELL
+          - type: 'null'
+          title: Direction
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Amount
+        quantity:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Quantity
+          description: Planned quantity; null clears it.
+        assetId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetid
+          description: Target position; null clears it.
+        assetClassId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Assetclassid
+          description: Target class; null clears it.
+        status:
+          anyOf:
+          - type: string
+            enum:
+            - planned
+            - cancelled
+          - type: 'null'
+          title: Status
+        note:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Note
+      type: object
+      title: TradePlanUpdate
+      description: Payload for changing a planned trade.
+    TradeUpdate:
+      properties:
+        tradeType:
+          anyOf:
+          - type: string
+            enum:
+            - BUY
+            - SELL
+          - type: 'null'
+          title: Tradetype
+        tradeDate:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Tradedate
+        quantity:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Quantity
+        price:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Price
+        fee:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Fee
+        currency:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z]{3}$
+          - type: 'null'
+          title: Currency
+        note:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Note
+      type: object
+      title: TradeUpdate
+      description: Payload for correcting a trade; the position is recalculated.
+    User:
+      properties:
+        id:
+          type: integer
+          title: Id
+          description: Database identifier.
+        login:
+          type: string
+          title: Login
+          description: Login taken from the client certificate CN.
+        role:
+          type: string
+          enum:
+          - admin
+          - user
+          title: Role
+          description: Application role.
+        isActive:
+          type: boolean
+          title: Isactive
+          description: Whether the user may sign in.
+        baseCurrency:
+          type: string
+          title: Basecurrency
+          description: Base currency of the user's portfolio.
+        lastLoginAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Lastloginat
+          description: Last successful sign-in, or null.
+      type: object
+      required:
+      - id
+      - login
+      - role
+      - isActive
+      - baseCurrency
+      title: User
+      description: A portfolio owner as exposed by the API.
+    UserCreate:
+      properties:
+        login:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Login
+          description: Login that must match the CN of the user's certificate.
+        role:
+          type: string
+          enum:
+          - admin
+          - user
+          title: Role
+          description: Initial application role.
+          default: user
+      type: object
+      required:
+      - login
+      title: UserCreate
+      description: Payload for creating a user (administrators only).
+    UserUpdate:
+      properties:
+        role:
+          anyOf:
+          - type: string
+            enum:
+            - admin
+            - user
+          - type: 'null'
+          title: Role
+          description: New application role.
+        isActive:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Isactive
+          description: Set to false to deactivate the user.
+      type: object
+      title: UserUpdate
+      description: Payload for partially updating a user (administrators only).
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    Valuation:
+      properties:
+        id:
+          type: integer
+          title: Id
+          description: Database identifier.
+        valuationDate:
+          type: string
+          format: date
+          title: Valuationdate
+          description: Date of the snapshot.
+        totalValue:
+          type: number
+          title: Totalvalue
+          description: Total value at that date.
+        currency:
+          type: string
+          title: Currency
+          description: Currency of the snapshot.
+        items:
+          items:
+            $ref: '#/components/schemas/ValuationItem'
+          type: array
+          title: Items
+          description: Breakdown by asset class.
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+          description: Creation timestamp.
+      type: object
+      required:
+      - id
+      - valuationDate
+      - totalValue
+      - currency
+      - items
+      - createdAt
+      title: Valuation
+      description: A stored portfolio valuation snapshot.
+    ValuationItem:
+      properties:
+        assetClassId:
+          type: integer
+          title: Assetclassid
+          description: Asset class identifier.
+        assetClassCode:
+          type: string
+          title: Assetclasscode
+          description: Asset class code.
+        value:
+          type: number
+          title: Value
+          description: Value in the snapshot currency.
+      type: object
+      required:
+      - assetClassId
+      - assetClassCode
+      - value
+      title: ValuationItem
+      description: Value of one asset class inside a stored snapshot.

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine import URL
 
@@ -14,6 +15,10 @@ from sqlalchemy.engine import URL
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))
+
+# The shared `.env` lives at the repository root; real environment variables
+# keep precedence, so CI and containers are unaffected.
+load_dotenv(SERVICE_ROOT.parent / ".env", override=False)
 
 from app.models import SCHEMA, Base  # noqa: E402
 

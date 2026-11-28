@@ -97,7 +97,11 @@ app = create_app()
 def run() -> None:
     """Run the service. Client certificate verification is handled by nginx."""
     settings = get_settings()
-    uvicorn.run(app, host=settings.host, port=settings.port)
+    level = settings.log_level.strip().lower()
+    if level not in {"critical", "error", "warning", "info", "debug", "trace"}:
+        level = "info"
+    # Access lines and tracebacks go to stderr, like the `eign.access` logger.
+    uvicorn.run(app, host=settings.host, port=settings.port, log_level=level)
 
 
 if __name__ == "__main__":

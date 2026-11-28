@@ -54,6 +54,13 @@ def _provision_first_user(login: str, session: Session) -> UserModel | None:
     """
     # Serialise concurrent first requests so only one user can be created.
     session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _PROVISION_LOCK_KEY})
+    # A request that waited for the lock may find its own login already created
+    # by the winner: that is a successful sign-in, not a rejection.
+    existing = session.execute(
+        select(UserModel).where(UserModel.login == login)
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing
     if session.execute(select(UserModel.id).limit(1)).first() is not None:
         session.rollback()
         return None

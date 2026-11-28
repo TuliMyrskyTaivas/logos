@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 
 def test_health_is_public(client: TestClient) -> None:
@@ -48,6 +49,23 @@ def test_unknown_login_is_rejected_once_users_exist(
 
     response = client.get("/auth/me", headers=auth("carol"))
     assert response.status_code == 403
+
+
+def test_provisioning_returns_the_user_created_by_a_concurrent_request(
+    db_session: Session,
+) -> None:
+    """Three parallel first requests: the losers must sign in, not get a 403."""
+    from app.auth import _provision_first_user
+
+    winner = _provision_first_user("alice", db_session)
+    assert winner is not None
+    db_session.commit()
+
+    loser = _provision_first_user("alice", db_session)
+    assert loser is not None
+    assert loser.id == winner.id
+
+    assert _provision_first_user("carol", db_session) is None
 
 
 def test_deactivated_user_is_rejected(

@@ -45,6 +45,9 @@ logos/
     │   ├── routers/           # API endpoints
     │   ├── jobs/              # APScheduler: price refresh, valuation snapshot
     │   └── marketdata/        # MOEX ISS, CBR and gûldvegt providers
+    ├── api/openapi.yaml       # OpenAPI 3.2, exported from FastAPI
+    ├── scripts/               # export_openapi.py (spec generation)
+    ├── web/                   # Next.js App Router frontend
     ├── alembic/               # own migration chain (schema `eign`)
     ├── tests/                 # pytest suite
     ├── alembic.ini
@@ -211,31 +214,139 @@ disables it):
   active user; repeated runs for the same date update the snapshot instead of
   duplicating it.
 
-### Run it
+### Frontend
 
-```bash
+The Next.js (App Router) application in [`eign/web`](eign/web) renders the
+portfolio screens: `/portfolio/summary` (valuation, allocation, performance and
+risk metrics), `/assets` (positions with create/edit/delete) and `/trades`
+(trade history, registration and corrections with position recalculation). The
+root `/` redirects to the summary.
+
+- Server components call the API at `EIGN_API_URL` and forward the identity
+  headers set by nginx (`X-Client-CN` / `X-SSL-Client-Verify`). Mutations and
+  other browser calls go through the same-origin `/api/*` proxy, which nginx
+  serves directly in production and `next dev` serves through a route handler.
+  Outside nginx the login falls back to `EIGN_DEV_LOGIN` and the header shows a
+  `dev identity` badge; with neither the app renders "Client certificate
+  required" instead of portfolio data.
+- Types are generated from the committed OpenAPI document
+  (`eign/api/openapi.yaml`, produced by `eign/scripts/export_openapi.py`) into
+  `eign/web/lib/api-types.ts`; regenerate them with `npm run api:types`.
+
+### Run locally
+
+Prerequisites: PostgreSQL 18 on `localhost:5432` (see
+[Getting Started](#getting-started)), Python 3.10+ with the service
+requirements, and Node.js 20.9+ for the frontend. Commands are PowerShell; on
+bash/macOS replace `$env:NAME = "value"` with `export NAME=value`.
+
+#### Backend
+
+```powershell
 cd eign
+..\.venv\Scripts\Activate.ps1        # or activate your own virtualenv
 pip install -r requirements.txt
 
-# Migrations run as a database superuser: they create the schema `eign` and
-# the two technical roles, so the role passwords must be provided as well.
-export POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres POSTGRES_DB=financial_db
-export EIGN_FRONTEND_PASSWORD=... EIGN_BACKEND_PASSWORD=...
+# One-off: migrations run as the database superuser because they create the
+# `eign` schema and the eign_frontend/eign_backend roles. Credentials come from
+# the repository `.env` (POSTGRES_*, EIGN_FRONTEND_PASSWORD,
+# EIGN_BACKEND_PASSWORD); variables already present in the environment win, so
+# export them only to override the file.
 alembic upgrade head
 
-# The API itself connects with the technical roles.
-export EIGN_DB_USER=eign_frontend EIGN_DB_PASSWORD=$EIGN_FRONTEND_PASSWORD
-export EIGN_DB_BACKEND_USER=eign_backend EIGN_DB_BACKEND_PASSWORD=$EIGN_BACKEND_PASSWORD
+# The API itself connects with the technical roles created above; their
+# passwords are the EIGN_FRONTEND_PASSWORD / EIGN_BACKEND_PASSWORD values.
+$env:EIGN_DB_USER = "eign_frontend"
+$env:EIGN_DB_PASSWORD = "<EIGN_FRONTEND_PASSWORD>"
+$env:EIGN_DB_BACKEND_USER = "eign_backend"
+$env:EIGN_DB_BACKEND_PASSWORD = "<EIGN_BACKEND_PASSWORD>"
 python -m app.main
 ```
 
-The service listens on `0.0.0.0:8080` (`EIGN_HOST`/`EIGN_PORT`). TLS and client
-certificate verification are expected to be terminated by nginx in front of it;
-the container and nginx setup is described in `eign/architecture.md` (§12).
+`alembic/env.py` loads the repository `.env` with `override=False`: real
+environment variables win over the file, and a partly exported `POSTGRES_*`
+set no longer gets mixed with the defaults (an unset `POSTGRES_USER` used to
+fall back to `postgres`, which fails authentication against a database owned by
+another user).
+
+The migration creates `eign_frontend`/`eign_backend` only when they are absent;
+if the roles already exist their current passwords are kept. In that case use
+those passwords in `EIGN_DB_PASSWORD`/`EIGN_DB_BACKEND_PASSWORD`, or rotate them
+with `ALTER ROLE`.
+
+The API listens on `0.0.0.0:8080` (`EIGN_HOST`/`EIGN_PORT`); the liveness probe
+is `GET /health`. TLS and client certificate verification are expected to be
+terminated by nginx in front of it; the container and nginx setup is described
+in `eign/architecture.md` (§12).
+
+#### Logs
+
+Both loggers write to **stderr**: uvicorn (`INFO: 127.0.0.1:... "GET /path"
+200 OK`, tracebacks of unhandled errors) and `eign.access` (the identity
+headers of every request). A background process that discards its output
+therefore shows nothing, so keep the log:
+
+```powershell
+# one terminal, log on screen and in the file
+python -m app.main *>&1 | Tee-Object -FilePath eign-backend.log
+
+# or fully detached, then follow the file
+Start-Process -FilePath "..\.venv\Scripts\python.exe" -ArgumentList "-m","app.main" `
+  -RedirectStandardOutput eign-backend.log -RedirectStandardError eign-backend.err
+Get-Content eign-backend.log, eign-backend.err -Wait -Tail 50
+```
+
+`EIGN_LOG_LEVEL` sets the verbosity of both (default `INFO`, use `debug` for
+more detail). To call the API without nginx, pass the identity headers
+yourself:
+
+```powershell
+$h = @{ "X-Client-CN" = "admin"; "X-SSL-Client-Verify" = "SUCCESS" }
+Invoke-RestMethod http://localhost:8080/auth/me -Headers $h      # 200, 401 or 403
+Invoke-RestMethod http://localhost:8080/portfolio/summary -Headers $h
+```
+
+`401` means the headers are missing or `X-SSL-Client-Verify` is not `SUCCESS`;
+`403` means the login is not registered (the users table is non-empty and the
+login was never created) or the user is deactivated.
 
 Other settings: `EIGN_DB_HOST`/`EIGN_DB_PORT`/`EIGN_DB_NAME`, `EIGN_TZ`,
-`EIGN_LOG_LEVEL`, `EIGN_GULDVEGT_URL`, `EIGN_MOEX_URL`, `EIGN_CBR_URL`,
+`EIGN_GULDVEGT_URL`, `EIGN_MOEX_URL`, `EIGN_CBR_URL`,
 `EIGN_MARKETDATA_TIMEOUT`, `EIGN_RISK_FREE_RATE`.
+
+#### Frontend
+
+Run the backend first: the pages are rendered on the server and call the API
+directly. In a second terminal:
+
+```powershell
+cd eign/web
+npm install
+npm run api:types
+$env:EIGN_API_URL = "http://localhost:8080"   # default
+$env:EIGN_DEV_LOGIN = "admin"                 # stand-in for the certificate CN
+npm run dev                                  # http://localhost:3000
+```
+
+`EIGN_DEV_LOGIN` is only for local work: it replaces the missing mTLS headers,
+so the page shows a `dev identity` badge. The login must be one the API knows
+about — the very first request creates it as the administrator. Omit the
+variable to see the "Client certificate required" screen instead.
+
+Next dev prints the reason of every 500 (stack trace, failing file, line) in the
+terminal that runs `npm run dev`, so keep that output as well:
+
+```powershell
+npm run dev *>&1 | Tee-Object -FilePath eign-web.log
+```
+
+If the backend log shows no `/auth/me` request at all, the frontend never
+reached the API: check `EIGN_API_URL` and that the backend is still listening
+(`Invoke-RestMethod http://localhost:8080/health`).
+
+`npm run typecheck` and `npm run build` are the production checks. See
+[`eign/web/README.md`](eign/web/README.md) for the full script list and the
+`web/` layout.
 
 ### Tests
 

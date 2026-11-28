@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+.env*.local
+
+# The repository root .gitignore excludes Python build directories named
+# `lib/`; the Next.js sources live in this one.
+!lib/
+!lib/**
